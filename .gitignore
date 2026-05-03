@@ -6,3 +6,9 @@ cache/tts/*.mp3
 _bundle.js
 claudio.exe
 .claude/
+.electron-cache/
+release/
+dist/
+out/
+Claudio-Portable/
+*.asar

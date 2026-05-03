@@ -7,7 +7,11 @@ const path = require('path');
 const { start: startScheduler, setCallback } = require('./lib/scheduler');
 const { route } = require('./lib/router');
 const state = require('./lib/state');
-require('dotenv').config();
+// .env: in dev use project root, in prod look next to exe
+const envPath = app.isPackaged
+  ? path.join(path.dirname(app.getPath('exe')), '.env')
+  : path.join(__dirname, '.env');
+require('dotenv').config({ path: envPath });
 
 let mainWindow = null;
 
@@ -28,7 +32,7 @@ function createWindow() {
     },
   });
 
-  mainWindow.loadFile('public/player.html');
+  mainWindow.loadFile(path.join(__dirname, 'public', 'player.html'));
 
   // Window controls via IPC
   ipcMain.on('win:minimize', () => mainWindow.minimize());

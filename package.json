@@ -8,12 +8,14 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "server": "node server.js",
-    "build": "electron-builder --win portable"
+    "build": "node scripts/build-portable.js",
+    "build:zip": "node scripts/build-portable.js --zip"
   },
   "build": {
     "appId": "com.claudio.radio",
     "productName": "Claudio",
-    "directories": { "output": "dist" },
+    "directories": { "output": "release" },
+    "asar": false,
     "files": [
       "electron-main.js",
       "electron-preload.js",
@@ -27,12 +29,16 @@
       "node_modules/**/*"
     ],
     "win": {
-      "target": "portable",
-      "icon": "public/icon.png"
+      "target": "nsis",
+      "icon": "public/icon.png",
+      "sign": false,
+      "signAndEditExecutable": false
     },
-    "portable": {
-      "artifactName": "Claudio-Setup.exe"
-    }
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "forceCodeSigning": false
   },
   "dependencies": {
     "express": "^4.21.0",
