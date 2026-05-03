@@ -17,10 +17,10 @@ let mainWindow = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 400,
-    height: 700,
-    minWidth: 360,
-    minHeight: 600,
+    width: 420,
+    height: 780,
+    minWidth: 380,
+    minHeight: 680,
     frame: false,
     transparent: false,
     backgroundColor: '#0a0a0a',
