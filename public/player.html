@@ -8,6 +8,17 @@
 </head>
 <body>
 
+<!-- ═══ LOGIN OVERLAY ═══ -->
+<div id="login-overlay">
+  <div class="login-card">
+    <div class="login-logo">Claudio</div>
+    <p class="login-desc">Personal AI Radio DJ</p>
+    <input type="text" id="login-uid" class="login-input" placeholder="输入网易云用户 ID" autocomplete="off">
+    <button id="btn-login" class="login-btn">进入电台</button>
+    <p class="login-note" id="login-note"></p>
+  </div>
+</div>
+
 <div id="app">
   <!-- ═══ HEADER ═══ -->
   <header id="header">
@@ -83,6 +94,9 @@
     </div>
   </section>
 
+  <!-- ═══ MIDDLE WRAP (Queue + AI share flex space) ═══ -->
+  <div class="middle-wrap">
+
   <!-- ═══ QUEUE ═══ -->
   <section id="queue-area">
     <div class="section-head">
@@ -109,6 +123,8 @@
       <!-- JS-rendered chat history -->
     </div>
   </section>
+
+  </div><!-- /middle-wrap -->
 
   <!-- ═══ INPUT ═══ -->
   <section id="input-area">

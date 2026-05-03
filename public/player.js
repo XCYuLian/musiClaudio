@@ -122,8 +122,88 @@ function applyLanguage() {
   updateClock();
 }
 
+// ═══════════════════════════════════════════════════════
+// LOGIN — Intercept before main UI
+// ═══════════════════════════════════════════════════════
+function initLogin() {
+  const overlay = $('#login-overlay');
+  const input = $('#login-uid');
+  const btn = $('#btn-login');
+  const note = $('#login-note');
+
+  // Check if already logged in
+  const savedUid = localStorage.getItem('user_uid');
+  if (savedUid) {
+    overlay.classList.add('hidden');
+    return false; // proceed to main UI
+  }
+
+  // Show login
+  overlay.classList.remove('hidden');
+
+  btn.addEventListener('click', async () => {
+    const uid = input.value.trim();
+    if (!uid || !/^\d+$/.test(uid)) {
+      note.textContent = '请输入有效的网易云用户 ID（纯数字）';
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = '验证中...';
+    note.textContent = '';
+
+    try {
+      // Save UID
+      localStorage.setItem('user_uid', uid);
+      // Attempt import
+      const result = await window.claudio.importNetease(uid, '');
+      if (result.ok) {
+        note.style.color = '#69f0ae';
+        note.textContent = `已导入 ${result.totalTracks} 首歌曲`;
+        setTimeout(() => {
+          overlay.classList.add('hidden');
+          loadSavedPlaylist();
+        }, 800);
+      } else {
+        // UID saved but import may fail (API issues) — still let them in
+        note.style.color = '#ff6666';
+        note.textContent = result.error || '导入失败，可之后重试';
+        btn.textContent = '跳过，先进电台';
+        btn.disabled = false;
+        btn.addEventListener('click', () => {
+          overlay.classList.add('hidden');
+          loadSavedPlaylist();
+        }, { once: true });
+      }
+    } catch (err) {
+      note.textContent = '连接失败：' + err.message;
+      btn.disabled = false;
+      btn.textContent = '重试';
+    }
+  });
+
+  // Enter key
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') btn.click();
+  });
+
+  return true; // login shown, defer init
+}
+
+// ── Responsive resize ──
+function initResize() {
+  const update = () => {
+    const h = window.innerHeight;
+    // AI chat minimum visibility
+    const aiChat = $('#ai-chat');
+    if (aiChat) aiChat.style.minHeight = h < 600 ? '120px' : 'auto';
+  };
+  window.addEventListener('resize', update);
+  update();
+}
+
 // ── Init ──
 document.addEventListener('DOMContentLoaded', () => {
+  const loginShown = initLogin();
   initClock();
   initWindowControls();
   initChat();
@@ -136,10 +216,14 @@ document.addEventListener('DOMContentLoaded', () => {
   initThemeToggle();
   initLangToggle();
   applyLanguage();
-  // Resume last playback
-  setTimeout(loadPlaybackState, 800);
-  // Load saved playlist (local archive)
-  setTimeout(loadSavedPlaylist, 1200);
+  initResize();
+
+  if (!loginShown) {
+    // Resume last playback
+    setTimeout(loadPlaybackState, 800);
+    // Load saved playlist
+    setTimeout(loadSavedPlaylist, 1200);
+  }
 });
 
 // ═══════════════════════════════════════════════════════

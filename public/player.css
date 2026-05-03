@@ -160,6 +160,16 @@ html, body {
   line-height: 1;
   animation: clock-breath 4s ease-in-out infinite;
 }
+/* Responsive: shrink clock on short windows */
+@media (max-height: 680px) {
+  .clock-digital { font-size: 42px; letter-spacing: 4px; }
+  #clock-area { padding: 10px 16px 4px; }
+}
+@media (max-height: 580px) {
+  .clock-digital { font-size: 32px; letter-spacing: 3px; }
+  #clock-area { padding: 4px 16px 2px; }
+  .on-air { margin-top: 2px; font-size: 9px; }
+}
 @keyframes clock-breath {
   0%, 100% { text-shadow: 0 0 2px rgba(200,200,220,0.9), 0 0 12px rgba(179,136,255,0.5), 0 0 30px rgba(179,136,255,0.25); }
   50% { text-shadow: 0 0 2px rgba(200,200,220,0.9), 0 0 24px rgba(179,136,255,0.7), 0 0 48px rgba(179,136,255,0.35); }
@@ -302,11 +312,21 @@ html, body {
 }
 
 /* ═══════════════════════════════════════════════════════
+   MIDDLE WRAP — Queue + AI share flex space
+   ═══════════════════════════════════════════════════════ */
+.middle-wrap {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════════════
    QUEUE — scrollable with max-height
    ═══════════════════════════════════════════════════════ */
 #queue-area {
   margin: 16px 16px 0; flex-shrink: 0;
-  display: flex; flex-direction: column; min-height: 0;
+  display: flex; flex-direction: column;
+  max-height: 35%; min-height: 0;
 }
 .queue-list {
   padding: 0 16px 8px;
@@ -377,10 +397,10 @@ html, body {
 }
 
 /* ═══════════════════════════════════════════════════════
-   AI CHAT — scrollable message history
+   AI CHAT — elastic fill, internal scroll
    ═══════════════════════════════════════════════════════ */
 #ai-area {
-  margin: 16px 16px 0; flex: 1; min-height: 0;
+  margin: 8px 16px 0; flex: 1; min-height: 0;
   display: flex; flex-direction: column;
 }
 #ai-area .section-head { flex-shrink: 0; }
@@ -558,6 +578,54 @@ html, body {
 }
 .win-dots button:hover { color: #b388ff; border-color: #b388ff44; }
 .win-dots #btn-close:hover { color: #ff6666; border-color: #ff666644; }
+
+/* ═══════════════════════════════════════════════════════
+   LOGIN OVERLAY — intercepts before main UI
+   ═══════════════════════════════════════════════════════ */
+#login-overlay {
+  position: fixed; inset: 0; z-index: 999;
+  background: rgba(5,5,12,0.95);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(16px);
+}
+#login-overlay.hidden { display: none; }
+.login-card {
+  text-align: center; width: 300px;
+}
+.login-logo {
+  font-size: 32px; font-weight: 800; letter-spacing: 6px;
+  color: #b388ff;
+  font-family: 'VT323', 'Consolas', monospace;
+  text-shadow: 0 0 20px rgba(179,136,255,0.5);
+  margin-bottom: 4px;
+}
+.login-desc {
+  font-size: 12px; font-weight: 600; letter-spacing: 3px;
+  color: #666; margin-bottom: 28px;
+  font-family: 'Consolas', monospace;
+}
+.login-input {
+  width: 100%; padding: 12px 16px; margin-bottom: 12px;
+  border: 1px solid #b388ff44; background: #0a0a0f;
+  color: #d0d0d8; font-size: 14px; font-weight: 500;
+  text-align: center; outline: none;
+  font-family: 'Consolas', monospace; letter-spacing: 1px;
+}
+.login-input:focus { border-color: #b388ff88; box-shadow: 0 0 16px rgba(179,136,255,0.2); }
+.login-btn {
+  width: 100%; padding: 12px;
+  border: 1px solid #69f0ae44; background: #69f0ae08;
+  color: #69f0ae; cursor: pointer;
+  font-family: 'Consolas', monospace;
+  font-size: 13px; font-weight: 700; letter-spacing: 4px;
+  transition: all .2s;
+}
+.login-btn:hover { background: #69f0ae15; box-shadow: 0 0 16px rgba(105,240,174,0.2); }
+.login-btn:disabled { opacity: 0.3; cursor: default; }
+.login-note {
+  margin-top: 10px; font-size: 10px; color: #ff6666;
+  font-family: 'Consolas', monospace;
+}
 
 /* ═══════════════════════════════════════════════════════
    SETTINGS OVERLAY
