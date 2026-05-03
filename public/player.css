@@ -102,7 +102,6 @@ html, body {
   font-family: 'Consolas', 'Courier New', monospace;
   text-shadow: 0 0 12px rgba(179,136,255,0.5);
 }
-.header-right { display: flex; gap: 10px; align-items: center; }
 .btn-ghost {
   border: 1px solid #b388ff44; background: transparent;
   color: #b388ff; font-family: 'Consolas', 'Courier New', monospace;
@@ -355,32 +354,24 @@ html, body {
 }
 
 /* ═══════════════════════════════════════════════════════
-   WINDOW CONTROLS
+   HEADER RIGHT — Settings + Window controls inline
    ═══════════════════════════════════════════════════════ */
-#win-controls {
-  position: fixed; top: 10px; right: 8px;
-  display: flex; gap: 2px; z-index: 100;
+.header-right {
+  display: flex; align-items: center; gap: 8px;
 }
-#win-controls button {
-  width: 26px; height: 26px; border: none; background: transparent;
-  color: #555; font-family: inherit; font-size: 12px; cursor: pointer;
+.win-dots {
+  display: flex; gap: 2px; margin-left: 4px;
+}
+.win-dots button {
+  width: 26px; height: 26px; border: 1px solid transparent;
+  background: transparent; color: #666;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 12px; font-weight: 700; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: all .15s;
 }
-#win-controls button:hover { color: #b388ff; background: #b388ff10; }
-#win-controls #btn-close:hover { color: #ff6666; background: #ff666610; }
-
-/* ═══════════════════════════════════════════════════════
-   SETTINGS GEAR
-   ═══════════════════════════════════════════════════════ */
-.gear-btn {
-  position: fixed; top: 12px; right: 108px;
-  width: 24px; height: 24px; border: none; background: transparent;
-  color: #444; cursor: pointer; display: flex;
-  align-items: center; justify-content: center;
-  z-index: 100; transition: color .2s;
-}
-.gear-btn:hover { color: #b388ff; }
+.win-dots button:hover { color: #b388ff; border-color: #b388ff44; }
+.win-dots #btn-close:hover { color: #ff6666; border-color: #ff666644; }
 
 /* ═══════════════════════════════════════════════════════
    SETTINGS OVERLAY
