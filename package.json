@@ -1,12 +1,38 @@
 {
   "name": "claudio",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Claudio — Personal AI Radio DJ",
-  "main": "server.js",
+  "main": "electron-main.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "server": "node server.js",
+    "build": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.claudio.radio",
+    "productName": "Claudio",
+    "directories": { "output": "dist" },
+    "files": [
+      "electron-main.js",
+      "electron-preload.js",
+      "server.js",
+      "cli.js",
+      "lib/**/*",
+      "lib/sql-wasm.wasm",
+      "prompts/**/*",
+      "user/**/*",
+      "public/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "public/icon.png"
+    },
+    "portable": {
+      "artifactName": "Claudio-Setup.exe"
+    }
   },
   "dependencies": {
     "express": "^4.21.0",
@@ -17,15 +43,11 @@
     "morgan": "^1.10.0",
     "cors": "^2.8.5"
   },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
   "engines": {
     "node": ">=18"
-  },
-  "pkg": {
-    "assets": [
-      "lib/sql-wasm.wasm",
-      "prompts/**/*",
-      "user/**/*",
-      "public/**/*"
-    ]
   }
 }

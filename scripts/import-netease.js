@@ -1,13 +1,17 @@
 /**
  * scripts/import-netease.js
  *
- * 自动读取用户网易云歌单 → 写入 user/playlists.json
+ * 自动读取网易云歌单 → 写入 user/playlists.json
  *
  * 用法:
- *   node scripts/import-netease.js --uid <网易云用户ID>
- *   node scripts/import-netease.js --uid <ID> --save-state   (同时存到 state.db)
+ *   方式1 (本地API):  node scripts/import-netease.js --uid <ID>
+ *   方式2 (Cookie直连): node scripts/import-netease.js --uid <ID> --cookie "MUSIC_U=xxx;"
+ *   同时存到 state.db:  加 --save-state
  *
- * 前置: NeteaseCloudMusicApi 服务必须已启动 (默认 http://localhost:3000)
+ * 获取 Cookie:
+ *   1. 浏览器打开 music.163.com 并登录
+ *   2. F12 → Application → Cookies → 复制 MUSIC_U 的值
+ *   3. 传入 --cookie "MUSIC_U=你复制的值"
  */
 
 require('dotenv').config({ path: require('path').resolve(__dirname, '..', '.env') });
@@ -15,32 +19,60 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '..', '.env'
 const fs = require('fs');
 const path = require('path');
 
-const NETEASE_URL = process.env.NETEASE_API_URL || 'http://localhost:3000';
 const OUTPUT_PATH = path.resolve(__dirname, '..', 'user', 'playlists.json');
 const SAVE_STATE = process.argv.includes('--save-state');
 
 // ── Parse args ──
-const uidIdx = process.argv.indexOf('--uid');
-const UID = uidIdx !== -1 ? process.argv[uidIdx + 1] : null;
+const getArg = (flag) => {
+  const i = process.argv.indexOf(flag);
+  return i !== -1 ? process.argv[i + 1] : null;
+};
+
+const UID = getArg('--uid') || process.env.NETEASE_UID;
+const COOKIE = getArg('--cookie') || process.env.NETEASE_COOKIE || '';
 
 if (!UID) {
-  console.error('Usage: node scripts/import-netease.js --uid <网易云用户ID>');
+  console.error('Usage: node scripts/import-netease.js --uid <网易云用户ID> [--cookie "MUSIC_U=xxx"]');
   process.exit(1);
 }
 
-// ── Helpers ──
+// ── API client ──
 
-async function apiGet(endpoint) {
-  const url = `${NETEASE_URL}${endpoint}`;
-  const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
-  });
+const WEB_API = 'https://music.163.com/api';
+const LOCAL_API = process.env.NETEASE_API_URL || 'http://localhost:3000';
+
+async function webGet(endpoint) {
+  const url = `${WEB_API}${endpoint}`;
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'Referer': 'https://music.163.com/',
+  };
+  if (COOKIE) headers['Cookie'] = COOKIE;
+
+  const res = await fetch(url, { headers });
   if (!res.ok) {
-    throw new Error(`Netease API ${res.status}: ${url}`);
+    throw new Error(`${res.status}`);
   }
   return res.json();
 }
 
+async function localGet(endpoint) {
+  const url = `${LOCAL_API}${endpoint}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res.json();
+}
+
+// Try local first, fall back to web
+async function apiGet(endpoint) {
+  // Try local API first
+  try { return await localGet(endpoint); } catch {}
+
+  // Fall back to direct web API with cookie
+  return webGet(endpoint);
+}
+
+// ── Track formatting ──
 function trackToQuery(track) {
   const name = track.name || '';
   const artist = track.ar?.[0]?.name || '';
@@ -49,10 +81,10 @@ function trackToQuery(track) {
 }
 
 // ── Main ──
-
 (async () => {
-  console.log(`[import] Connecting to Netease API at ${NETEASE_URL}`);
-  console.log(`[import] Fetching playlists for user: ${UID}\n`);
+  console.log('[import] Claudio Netease Playlist Importer');
+  console.log(`[import] UID: ${UID}`);
+  console.log(`[import] Cookie: ${COOKIE ? 'provided' : 'none (trying local API)'}\n`);
 
   // 1. Get user playlists
   let playlistList;
@@ -60,54 +92,59 @@ function trackToQuery(track) {
     const data = await apiGet(`/user/playlist?uid=${UID}`);
     playlistList = data.playlist || [];
   } catch (err) {
-    console.error(`[import] Failed to fetch playlists: ${err.message}`);
-    console.error('[import] Make sure NeteaseCloudMusicApi is running.');
+    console.error(`[import] Failed: ${err.message}`);
+    console.error('\n[import] 获取歌单失败。请检查:');
+    console.error('  1. NeteaseCloudMusicApi 是否已启动 (http://localhost:3000)');
+    console.error('  2. 或提供 Cookie: --cookie "MUSIC_U=xxx"');
+    console.error('\n  获取 Cookie 方法:');
+    console.error('    → 浏览器打开 music.163.com 并登录');
+    console.error('    → F12 → Application → Cookies → 复制 MUSIC_U 的值\n');
     process.exit(1);
   }
 
   if (!playlistList.length) {
-    console.log('[import] No playlists found for this user.');
+    console.log('[import] No playlists found.');
     process.exit(0);
   }
 
-  console.log(`[import] Found ${playlistList.length} playlists\n`);
+  console.log(`[import] Found ${playlistList.length} playlists:`);
+  playlistList.forEach(p => console.log(`  · ${p.name} (${p.trackCount} tracks)`));
+  console.log('');
 
-  // 2. For each playlist, fetch tracks
+  // 2. Fetch tracks for each playlist
   const result = {};
   let totalTracks = 0;
 
   for (const pl of playlistList) {
     const name = pl.name || `playlist_${pl.id}`;
-    console.log(`[import]   Fetching: ${name} (${pl.trackCount} tracks)`);
+    process.stdout.write(`[import] Fetching: ${name} ... `);
 
     try {
       const detail = await apiGet(`/playlist/detail?id=${pl.id}`);
       const tracks = detail.playlist?.tracks || [];
       result[name] = tracks.map(trackToQuery);
       totalTracks += result[name].length;
+      console.log(`${result[name].length} tracks ✓`);
     } catch (err) {
-      console.error(`[import]   → Failed: ${err.message}`);
+      console.log(`FAILED (${err.message})`);
       result[name] = [];
     }
 
-    // Polite delay between requests
-    await sleep(500);
+    await sleep(600);
   }
 
   // 3. Write to file
   fs.writeFileSync(OUTPUT_PATH, JSON.stringify(result, null, 2), 'utf-8');
-  console.log(`\n[import] Done — ${totalTracks} tracks across ${Object.keys(result).length} playlists`);
-  console.log(`[import] Written to: ${OUTPUT_PATH}`);
+  console.log(`\n[import] ✅ ${totalTracks} tracks across ${Object.keys(result).length} playlists`);
+  console.log(`[import] → ${OUTPUT_PATH}`);
 
-  // 4. Optionally save to state.db
+  // 4. Save to state.db
   if (SAVE_STATE) {
     const state = require('../lib/state');
     await state.init();
     state.setPref('netease_uid', UID);
     state.setPref('netease_playlists_updated', new Date().toISOString());
     console.log('[import] UID saved to state.db');
-  } else {
-    console.log('[import] Hint: add --save-state to persist UID to state.db');
   }
 })();
 

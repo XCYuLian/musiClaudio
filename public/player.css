@@ -1,0 +1,181 @@
+/*
+ * Claudio Desktop Player — 网易云风格
+ */
+
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; overflow: hidden;
+  background: #0a0a0a;
+  color: #e8e8e8;
+  font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+#app {
+  display: flex; flex-direction: column; height: 100%;
+  background: linear-gradient(180deg, #141414 0%, #0a0a0a 100%);
+  position: relative;
+}
+
+/* ── Title Bar ── */
+#titlebar {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 36px; padding: 0 12px;
+  background: transparent;
+  -webkit-app-region: drag;
+  z-index: 10;
+}
+.tb-title { font-size: 12px; color: #666; font-weight: 500; letter-spacing: 2px; }
+.tb-controls { display: flex; gap: 4px; -webkit-app-region: no-drag; }
+.tb-controls button {
+  width: 28px; height: 28px; border: none; background: transparent;
+  color: #888; font-size: 14px; cursor: pointer; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.tb-controls button:hover { background: #ffffff10; color: #ccc; }
+#btn-close:hover { background: #e04040; color: #fff; }
+
+/* ── Artwork ── */
+#artwork-wrap {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px 0 8px; flex-shrink: 0;
+}
+#artwork {
+  width: 200px; height: 200px; border-radius: 50%;
+  background: #1a1a1a;
+  border: 2px solid #2a2a2a;
+  display: flex; align-items: center; justify-content: center;
+  position: relative; z-index: 1;
+  overflow: hidden;
+  box-shadow: 0 0 60px rgba(255, 255, 255, 0.03);
+}
+.art-inner {
+  width: 100%; height: 100%;
+  background: radial-gradient(circle at 40% 40%, #3a3a3a, #1a1a1a);
+}
+.art-inner::after {
+  content: '♪';
+  font-size: 56px; color: #444;
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%;
+}
+#artwork.playing { animation: spin 20s linear infinite; border-color: #f0a05055; }
+#artwork.playing .art-inner::after { color: #f0a050; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.art-glow {
+  position: absolute; width: 220px; height: 220px; border-radius: 50%;
+  background: radial-gradient(circle, #f0a05010 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ── Track Info ── */
+#track-info { text-align: center; padding: 8px 24px 12px; flex-shrink: 0; }
+.track-title {
+  font-size: 17px; font-weight: 600; color: #e8e8e8;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.track-sub {
+  font-size: 12px; color: #777; margin-top: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── DJ Message ── */
+#dj-msg {
+  margin: 0 24px 12px; padding: 14px 18px;
+  background: #ffffff05; border-radius: 14px;
+  border: 1px solid #ffffff08;
+  transition: opacity .3s;
+}
+#dj-msg.hidden { opacity: 0; pointer-events: none; }
+.dj-say { font-size: 13px; color: #d0d0d0; line-height: 1.6; }
+.dj-reason { font-size: 11px; color: #666; margin-top: 6px; font-style: italic; }
+
+/* ── Controls ── */
+#controls {
+  display: flex; align-items: center; justify-content: center;
+  gap: 24px; padding: 8px 0; flex-shrink: 0;
+}
+.ctrl-btn {
+  width: 40px; height: 40px; border: none; background: transparent;
+  color: #888; cursor: pointer; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.ctrl-btn:hover { color: #ccc; background: #ffffff08; }
+.ctrl-btn:disabled { opacity: 0.25; cursor: default; }
+.ctrl-btn.play-btn {
+  width: 56px; height: 56px;
+  background: #f0a050; color: #0a0a0a;
+  box-shadow: 0 4px 20px rgba(240, 160, 80, 0.25);
+}
+.ctrl-btn.play-btn:hover { transform: scale(1.05); background: #f5b868; }
+.ctrl-btn.play-btn:disabled { background: #333; color: #666; box-shadow: none; transform: none; }
+
+/* ── Chat Bar ── */
+#chat-bar {
+  display: flex; gap: 10px; padding: 12px 20px 20px; margin-top: auto; flex-shrink: 0;
+}
+#chat-input {
+  flex: 1; padding: 12px 16px; border-radius: 24px;
+  border: 1px solid #2a2a2a; background: #141414;
+  color: #e8e8e8; font-size: 13px; outline: none;
+  font-family: inherit; transition: border-color .2s;
+}
+#chat-input:focus { border-color: #f0a05055; }
+#chat-input::placeholder { color: #555; }
+#btn-send {
+  width: 44px; height: 44px; border-radius: 50%; border: none;
+  background: #1a1a1a; color: #888; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s; flex-shrink: 0;
+}
+#btn-send:hover { background: #f0a050; color: #0a0a0a; }
+#btn-send:disabled { opacity: 0.3; }
+
+/* ── Settings Gear ── */
+.gear-btn {
+  position: absolute; top: 8px; right: 60px;
+  width: 28px; height: 28px; border: none; background: transparent;
+  color: #555; cursor: pointer; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 10; transition: color .15s;
+}
+.gear-btn:hover { color: #999; }
+
+/* ── Settings Overlay ── */
+#settings-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,0.85);
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity .25s;
+}
+#settings-overlay.hidden { opacity: 0; pointer-events: none; }
+.settings-panel {
+  background: #1a1a1a; border: 1px solid #2a2a2a;
+  border-radius: 16px; padding: 28px 24px; width: 300px;
+}
+.settings-panel h3 { font-size: 16px; margin-bottom: 20px; color: #e8e8e8; }
+.setting-item { margin-bottom: 16px; }
+.setting-item label { display: block; font-size: 12px; color: #888; margin-bottom: 6px; }
+.setting-item select {
+  width: 100%; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid #2a2a2a; background: #0a0a0a; color: #e8e8e8;
+  font-size: 13px; outline: none; cursor: pointer;
+}
+.model-note { font-size: 11px; color: #555; margin-bottom: 16px; }
+.btn-close-panel {
+  width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #333;
+  background: transparent; color: #aaa; cursor: pointer; font-size: 13px;
+  transition: all .15s;
+}
+.btn-close-panel:hover { background: #ffffff08; color: #ccc; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
