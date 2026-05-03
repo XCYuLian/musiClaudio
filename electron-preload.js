@@ -11,20 +11,29 @@ contextBridge.exposeInMainWorld('claudio', {
   // Settings
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setModel: (model) => ipcRenderer.invoke('settings:setModel', model),
+  getApiKey: () => ipcRenderer.invoke('settings:getApiKey'),
+  setApiKey: (key) => ipcRenderer.invoke('settings:setApiKey', key),
 
   // Netease import
   importNetease: (uid, cookie) => ipcRenderer.invoke('netease:import', { uid, cookie }),
+  importPlaylist: (playlistId) => ipcRenderer.invoke('netease:importPlaylist', playlistId),
   onImportProgress: (callback) => {
     ipcRenderer.on('netease:progress', (_event, data) => callback(data));
   },
 
   // State
   getNow: () => ipcRenderer.invoke('state:now'),
+  getSavedPlaylist: () => ipcRenderer.invoke('state:getSavedPlaylist'),
+  getSavedUid: () => ipcRenderer.invoke('state:getSavedUid'),
 
   // Window controls
   minimize: () => ipcRenderer.send('win:minimize'),
   maximize: () => ipcRenderer.send('win:maximize'),
   close: () => ipcRenderer.send('win:close'),
+
+  // API service management
+  pingApi: () => ipcRenderer.invoke('api:ping'),
+  pingProxy: () => ipcRenderer.invoke('proxy:ping'),
 
   // Listen for scheduler broadcasts
   onBroadcast: (callback) => {

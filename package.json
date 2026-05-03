@@ -9,12 +9,15 @@
     "dev": "electron . --dev",
     "server": "node server.js",
     "build": "node scripts/build-portable.js",
-    "build:zip": "node scripts/build-portable.js --zip"
+    "build:zip": "node scripts/build-portable.js --zip",
+    "proxy": "node node_modules/@unblockneteasemusic/server/src/app.js -p 8080 -e https://music.163.com"
   },
   "build": {
     "appId": "com.claudio.radio",
     "productName": "Claudio",
-    "directories": { "output": "release" },
+    "directories": {
+      "output": "release"
+    },
     "asar": false,
     "files": [
       "electron-main.js",
@@ -41,13 +44,15 @@
     "forceCodeSigning": false
   },
   "dependencies": {
-    "express": "^4.21.0",
-    "ws": "^8.18.0",
-    "sql.js": "^1.12.0",
-    "node-cron": "^3.0.3",
+    "@unblockneteasemusic/server": "^0.28.0",
+    "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "express": "^4.21.0",
     "morgan": "^1.10.0",
-    "cors": "^2.8.5"
+    "NeteaseCloudMusicApi": "^4.31.0",
+    "node-cron": "^3.0.3",
+    "sql.js": "^1.12.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "electron": "^33.0.0",
