@@ -135,11 +135,25 @@
   <div id="settings-overlay" class="hidden">
     <div class="settings-panel">
       <h3>— SETTINGS —</h3>
-      <div class="setting-item">
-        <label>MODEL</label>
+
+      <!-- Model -->
+      <div class="setting-section">
+        <div class="section-label">MODEL</div>
         <select id="model-select"></select>
+        <p class="setting-note" id="model-note"></p>
       </div>
-      <p class="model-note" id="model-note"></p>
+
+      <div class="setting-divider"></div>
+
+      <!-- Netease Import -->
+      <div class="setting-section">
+        <div class="section-label">NETEASE IMPORT</div>
+        <input type="text" id="import-uid" placeholder="User ID" class="setting-input">
+        <input type="text" id="import-cookie" placeholder="MUSIC_U cookie (optional)" class="setting-input">
+        <button id="btn-import" class="btn-import">IMPORT PLAYLISTS</button>
+        <p class="setting-note" id="import-status"></p>
+      </div>
+
       <button id="btn-settings-close" class="btn-close-panel">CLOSE</button>
     </div>
   </div>

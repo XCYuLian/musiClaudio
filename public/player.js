@@ -264,16 +264,21 @@ function initThemeToggle() {
 }
 
 // ═══════════════════════════════════════════════════════
-// SETTINGS — Model switcher overlay
+// SETTINGS — Model switcher + Netease import
 // ═══════════════════════════════════════════════════════
 async function initSettings() {
   const gearBtn = $('#btn-settings');
   const overlay = $('#settings-overlay');
   const closeBtn = $('#btn-settings-close');
   const modelSelect = $('#model-select');
+  const btnImport = $('#btn-import');
+  const importStatus = $('#import-status');
+  const importUid = $('#import-uid');
+  const importCookie = $('#import-cookie');
 
   gearBtn.addEventListener('click', async () => {
     overlay.classList.remove('hidden');
+    // Load model settings
     try {
       const settings = await window.claudio.getSettings();
       modelSelect.innerHTML = '';
@@ -302,6 +307,46 @@ async function initSettings() {
       $('#model-note').textContent = 'SWITCH FAILED';
     }
   });
+
+  // ── Netease import ──
+  btnImport.addEventListener('click', async () => {
+    const uid = importUid.value.trim();
+    const cookie = importCookie.value.trim();
+    if (!uid) {
+      importStatus.className = 'setting-note error';
+      importStatus.textContent = 'Please enter your Netease User ID';
+      return;
+    }
+
+    btnImport.disabled = true;
+    btnImport.textContent = 'IMPORTING...';
+    importStatus.className = 'setting-note';
+    importStatus.textContent = 'Connecting...';
+
+    try {
+      const result = await window.claudio.importNetease(uid, cookie);
+      if (!result.ok) throw new Error(result.error);
+      importStatus.className = 'setting-note success';
+      importStatus.textContent = `${result.totalTracks} tracks in ${result.playlistCount} playlists imported.`;
+    } catch (err) {
+      importStatus.className = 'setting-note error';
+      importStatus.textContent = err.message;
+    } finally {
+      btnImport.disabled = false;
+      btnImport.textContent = 'IMPORT PLAYLISTS';
+    }
+  });
+
+  // Progress updates from backend
+  if (window.claudio.onImportProgress) {
+    window.claudio.onImportProgress((data) => {
+      if (data.phase === 'tracks') {
+        importStatus.textContent = `[${data.current}/${data.total}] ${data.message}`;
+      } else {
+        importStatus.textContent = data.message;
+      }
+    });
+  }
 }
 
 // ═══════════════════════════════════════════════════════

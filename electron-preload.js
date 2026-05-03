@@ -12,6 +12,12 @@ contextBridge.exposeInMainWorld('claudio', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setModel: (model) => ipcRenderer.invoke('settings:setModel', model),
 
+  // Netease import
+  importNetease: (uid, cookie) => ipcRenderer.invoke('netease:import', { uid, cookie }),
+  onImportProgress: (callback) => {
+    ipcRenderer.on('netease:progress', (_event, data) => callback(data));
+  },
+
   // State
   getNow: () => ipcRenderer.invoke('state:now'),
 

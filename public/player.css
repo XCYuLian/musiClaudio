@@ -393,25 +393,50 @@ html, body {
   color: #b388ff; margin-bottom: 20px; text-align: center;
   font-family: 'Consolas', 'Courier New', monospace;
 }
-.setting-item { margin-bottom: 16px; }
-.setting-item label {
-  display: block; font-size: 10px; font-weight: 700; letter-spacing: 2px;
-  color: #777; margin-bottom: 6px;
+.setting-section { margin-bottom: 16px; }
+.section-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 2px;
+  color: #777; margin-bottom: 8px;
   font-family: 'Consolas', 'Courier New', monospace;
 }
-.setting-item select {
+.setting-section select,
+.setting-input {
   width: 100%; padding: 10px 12px;
   border: 1px solid #2a2a3a; background: #0a0a0f;
   color: #c8c8d0; font-family: inherit; font-size: 13px; font-weight: 500;
-  outline: none; cursor: pointer;
+  outline: none; margin-bottom: 8px;
 }
-.setting-item select:focus { border-color: #b388ff44; }
-.model-note {
-  font-size: 11px; font-weight: 500; color: #666; margin-bottom: 16px;
-  letter-spacing: 1px;
+.setting-section select:focus,
+.setting-input:focus { border-color: #b388ff44; }
+.setting-input::placeholder { color: #444; font-weight: 400; }
+.setting-note {
+  font-size: 11px; font-weight: 500; color: #666;
+  letter-spacing: 1px; margin-top: 4px;
 }
+.setting-note.success { color: #69f0ae; }
+.setting-note.error { color: #ff6666; }
+
+.setting-divider {
+  height: 1px; background: #ffffff08;
+  margin: 18px 0;
+}
+
+.btn-import {
+  width: 100%; padding: 10px; margin-top: 4px;
+  border: 1px solid #69f0ae44; background: #69f0ae08;
+  color: #69f0ae; cursor: pointer;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 11px; font-weight: 700; letter-spacing: 2px;
+  transition: all .2s;
+}
+.btn-import:hover:not(:disabled) {
+  background: #69f0ae15;
+  box-shadow: 0 0 16px rgba(105,240,174,0.25);
+}
+.btn-import:disabled { opacity: 0.3; cursor: default; }
+
 .btn-close-panel {
-  width: 100%; padding: 10px;
+  width: 100%; padding: 10px; margin-top: 8px;
   border: 1px solid #b388ff33; background: transparent;
   color: #b388ff; cursor: pointer;
   font-family: 'Consolas', 'Courier New', monospace;

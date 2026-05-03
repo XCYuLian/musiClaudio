@@ -7,6 +7,7 @@ const path = require('path');
 const { start: startScheduler, setCallback } = require('./lib/scheduler');
 const { route } = require('./lib/router');
 const state = require('./lib/state');
+const { importPlaylists } = require('./lib/import-netease');
 // .env: in dev use project root, in prod look next to exe
 const envPath = app.isPackaged
   ? path.join(path.dirname(app.getPath('exe')), '.env')
@@ -71,6 +72,30 @@ function createWindow() {
   ipcMain.handle('state:now', async () => {
     const recent = state.getRecentPlays(1);
     return { nowPlaying: recent[0] || null };
+  });
+
+  // Netease import
+  ipcMain.handle('netease:import', async (_event, { uid, cookie }) => {
+    try {
+      const savedUid = uid || state.getPref('netease_uid') || process.env.NETEASE_UID;
+      if (!savedUid) return { ok: false, error: '请先填写网易云用户 ID' };
+
+      const savedCookie = cookie || state.getPref('netease_cookie') || process.env.NETEASE_COOKIE || '';
+
+      const result = await importPlaylists(savedUid, savedCookie, null, (progress) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('netease:progress', progress);
+        }
+      });
+
+      // Save UID to state
+      state.setPref('netease_uid', savedUid);
+      state.setPref('netease_playlists_updated', new Date().toISOString());
+
+      return { ok: true, ...result };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
   });
 }
 
