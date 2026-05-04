@@ -652,7 +652,9 @@ html, body {
 .settings-panel {
   background: #12121a; border: 1px solid #b388ff33;
   padding: 28px 24px; width: 300px;
+  max-height: 90vh; overflow-y: auto;
   box-shadow: 0 0 30px rgba(179,136,255,0.1);
+  scrollbar-width: thin; scrollbar-color: #b388ff44 transparent;
 }
 .settings-panel h3 {
   font-size: 14px; font-weight: 800; letter-spacing: 3px;
