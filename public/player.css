@@ -384,6 +384,8 @@ html, body {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .queue-track.active .qt-artist { color: #69f0ae88; }
+.queue-track.dead { color: #444; opacity: 0.5; pointer-events: none; }
+.queue-track.dead .queue-idx { color: #333; }
 /* ── Play history ── */
 .history-list {
   margin-top: 10px; padding: 0 0 4px;
@@ -662,6 +664,33 @@ html, body {
   margin-top: 10px; font-size: 10px; color: #ff6666;
   font-family: 'Consolas', monospace;
 }
+.login-actions {
+  display: flex; gap: 8px; margin-top: 10px; justify-content: center;
+}
+.login-skip-btn, .login-guide-btn {
+  border: none; background: transparent; cursor: pointer;
+  font-size: 10px; font-weight: 600; letter-spacing: 1px;
+  padding: 4px 8px; transition: color .15s;
+  font-family: 'Consolas', monospace;
+}
+.login-skip-btn { color: #666; }
+.login-skip-btn:hover { color: #b388ff; }
+.login-guide-btn { color: #555; }
+.login-guide-btn:hover { color: #69f0ae; }
+.login-guide-tip {
+  margin-top: 10px; padding: 10px; font-size: 11px; color: #888; line-height: 1.7;
+  background: #0a0a0f; border: 1px solid #ffffff08;
+  text-align: center;
+}
+.login-win-controls {
+  position: fixed; top: 12px; right: 16px; display: flex; gap: 4px; z-index: 1001;
+}
+.login-win-controls button {
+  width: 28px; height: 28px; border: 1px solid #ffffff10; background: transparent;
+  color: #666; cursor: pointer; font-size: 12px;
+  font-family: 'Consolas', monospace;
+}
+.login-win-controls button:hover { color: #b388ff; }
 
 /* ═══════════════════════════════════════════════════════
    SETTINGS OVERLAY

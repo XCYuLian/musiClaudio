@@ -131,16 +131,23 @@ function initLogin() {
   const input = $('#login-uid');
   const btn = $('#btn-login');
   const note = $('#login-note');
+  const btnSkip = $('#btn-login-skip');
+  const btnGuide = $('#btn-login-guide');
 
-  // Check if already logged in
-  const savedUid = localStorage.getItem('user_uid');
-  if (savedUid) {
-    overlay.classList.add('hidden');
-    return false; // proceed to main UI
-  }
+  // Default key is built-in — always go straight to main UI
+  overlay.classList.add('hidden');
+  return false;
 
-  // Show login
-  overlay.classList.remove('hidden');
+  // Login is now optional; user can trigger it from Settings → import
+
+  // Window controls on login screen
+  $('#login-btn-min').addEventListener('click', () => window.claudio.minimize());
+  $('#login-btn-close').addEventListener('click', () => window.claudio.close());
+  btnSkip.addEventListener('click', () => overlay.classList.add('hidden'));
+  btnGuide.addEventListener('click', () => {
+    const tip = $('#login-guide-tip');
+    tip.style.display = tip.style.display === 'none' ? 'block' : 'none';
+  });
 
   btn.addEventListener('click', async () => {
     const uid = input.value.trim();
@@ -148,46 +155,25 @@ function initLogin() {
       note.textContent = '请输入有效的网易云用户 ID（纯数字）';
       return;
     }
-    btn.disabled = true;
-    btn.textContent = '验证中...';
-    note.textContent = '';
-
+    btn.disabled = true; btn.textContent = '导入中...'; note.textContent = '';
     try {
-      // Save UID
       localStorage.setItem('user_uid', uid);
-      // Attempt import
       const result = await window.claudio.importNetease(uid, '');
       if (result.ok) {
         note.style.color = '#69f0ae';
         note.textContent = `已导入 ${result.totalTracks} 首歌曲`;
-        setTimeout(() => {
-          overlay.classList.add('hidden');
-          loadSavedPlaylist();
-        }, 800);
+        setTimeout(() => overlay.classList.add('hidden'), 1000);
       } else {
-        // UID saved but import may fail (API issues) — still let them in
         note.style.color = '#ff6666';
-        note.textContent = result.error || '导入失败，可之后重试';
-        btn.textContent = '跳过，先进电台';
-        btn.disabled = false;
-        btn.addEventListener('click', () => {
-          overlay.classList.add('hidden');
-          loadSavedPlaylist();
-        }, { once: true });
+        note.textContent = result.error || '导入失败';
+        btn.disabled = false; btn.textContent = '重试';
       }
     } catch (err) {
       note.textContent = '连接失败：' + err.message;
-      btn.disabled = false;
-      btn.textContent = '重试';
+      btn.disabled = false; btn.textContent = '重试';
     }
   });
-
-  // Enter key
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') btn.click();
-  });
-
-  return true; // login shown, defer init
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); });
 }
 
 // ── Responsive resize ──
@@ -455,9 +441,23 @@ function updatePlayerInfo(title, sub) {
 // ═══════════════════════════════════════════════════════
 function initQueue() { renderQueue(); }
 
+async function checkRefill() {
+  // Count remaining tracks with URLs from current position
+  const remaining = queue.slice(currentQueueIdx + 1).filter(t => t.url).length;
+  if (remaining < 2 && queue.length > 0) {
+    console.log('[refill] Queue low (' + remaining + ' remaining), triggering AI...');
+    try { await window.claudio.refillQueue(); } catch { /* offline */ }
+  }
+}
+
 function skipTrack(dir) {
   if (!queue.length) return;
-  const newIdx = currentQueueIdx + dir;
+  let newIdx = currentQueueIdx + dir;
+  // Skip dead tracks (no URL)
+  while (newIdx >= 0 && newIdx < queue.length) {
+    if (queue[newIdx]?.url) break;
+    newIdx += dir;
+  }
   if (newIdx < 0 || newIdx >= queue.length) return;
   currentQueueIdx = newIdx;
   renderQueue();
@@ -466,6 +466,7 @@ function skipTrack(dir) {
     updatePlayerInfo(track.label || track.name, track.album || track.artists || '');
     playAudio(track.url);
   }
+  checkRefill();
 }
 
 function renderQueue() {
@@ -484,8 +485,9 @@ function renderQueue() {
 
   container.innerHTML = queue.map((tr, i) => {
     const active = i === currentQueueIdx;
-    const cls = active ? 'queue-track active' : 'queue-track';
-    const dot = active ? '<span class="dot-pulse green sm" style="margin-right:6px"></span>' : '';
+    const dead = !tr.url;
+    const cls = active ? 'queue-track active' : (dead ? 'queue-track dead' : 'queue-track');
+    const dot = active ? '<span class="dot-pulse green sm" style="margin-right:6px"></span>' : (dead ? '<span class="dot-static" style="background:#444;margin-right:6px"></span>' : '');
     const title = tr.label || tr.name || tr.title || '?';
     const artist = tr.artist || tr.album || tr.sub || '';
 
@@ -562,14 +564,16 @@ function initAudio() {
 
   audio.addEventListener('ended', () => {
     isPlaying = false;
-    // Auto-next: play next track in queue if available
-    const nextIdx = currentQueueIdx + 1;
+    // Auto-next: skip dead tracks, find next playable
+    let nextIdx = currentQueueIdx + 1;
+    while (nextIdx < queue.length && !queue[nextIdx]?.url) nextIdx++;
     if (nextIdx < queue.length && queue[nextIdx]?.url) {
       currentQueueIdx = nextIdx;
       renderQueue();
       const tr = queue[currentQueueIdx];
       updatePlayerInfo(tr.label || tr.name, tr.album || tr.artists || '');
       playAudio(tr.url);
+      checkRefill();
     } else {
       $('#icon-play').style.display = '';
       $('#icon-pause').style.display = 'none';

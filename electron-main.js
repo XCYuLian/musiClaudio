@@ -155,6 +155,17 @@ function createWindow() {
     }
   });
 
+  // Smart refill — trigger when queue is low
+  ipcMain.handle('queue:refill', async () => {
+    try {
+      const hour = new Date().getHours();
+      await triggerNow('refill', `(auto-refill) 队列快空了，请推荐 3-5 首歌补充进来。现在${hour}点，根据当前时间和用户品味推荐。`);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
   // Proxy status for renderer
   ipcMain.handle('proxy:ping', async () => {
     const alive = await proxy.ping();

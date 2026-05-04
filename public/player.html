@@ -9,13 +9,24 @@
 <body>
 
 <!-- ═══ LOGIN OVERLAY ═══ -->
-<div id="login-overlay">
+<div id="login-overlay" class="hidden">
+  <div class="login-win-controls">
+    <button id="login-btn-min" title="最小化">—</button>
+    <button id="login-btn-close" title="关闭">✕</button>
+  </div>
   <div class="login-card">
     <div class="login-logo">Claudio</div>
     <p class="login-desc">Personal AI Radio DJ</p>
     <input type="text" id="login-uid" class="login-input" placeholder="输入网易云用户 ID" autocomplete="off">
-    <button id="btn-login" class="login-btn">进入电台</button>
+    <button id="btn-login" class="login-btn">导入我的歌单</button>
+    <div class="login-actions">
+      <button id="btn-login-skip" class="login-skip-btn">跳过，直接进入</button>
+      <button id="btn-login-guide" class="login-guide-btn">? 如何获取 UID</button>
+    </div>
     <p class="login-note" id="login-note"></p>
+    <div class="login-guide-tip" id="login-guide-tip" style="display:none">
+      打开网易云 → 我的 → 头像 → 分享 → 复制链接 →<br>链接末尾 <b>id=</b> 后面的数字就是你的 UID
+    </div>
   </div>
 </div>
 

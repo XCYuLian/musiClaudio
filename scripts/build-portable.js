@@ -36,6 +36,7 @@ const APP_DIRS = [
   'prompts',
   'user',
   'public',
+  'data',
   'node_modules',
 ];
 
@@ -54,7 +55,7 @@ function ensureDir(dir) {
   console.log('[build] Claudio Portable Builder\n');
 
   const t = Date.now();
-  const TMP_DIR = path.join(os.tmpdir(), `claudio-build-${t}`);
+  const TMP_DIR = path.join(__dirname, '..', '.build-temp', `build-${t}`);
   const OUT_DIR = path.join(OUT_BASE, 'Claudio');
 
   // 1. Download Electron if not cached
@@ -104,7 +105,7 @@ function ensureDir(dir) {
     const src = path.resolve(__dirname, '..', dir);
     const dst = path.join(appDir, dir);
     if (fs.existsSync(src)) {
-      sh(`cp -r "${src}" "${dst}"`, { timeout: 120000 });
+      sh(`cp -r "${src}" "${dst}"`, { timeout: 300000 });
     }
   }
 
@@ -139,7 +140,7 @@ function ensureDir(dir) {
     console.log(`[build] Creating ${zipOut} ...`);
     try {
       // Use Node.js built-in zlib for zip, or fall back to external
-      sh(`powershell -Command "Compress-Archive -Path '${OUT_DIR}' -DestinationPath '${zipOut}' -Force"`, { timeout: 120000 });
+      sh(`powershell -Command "Compress-Archive -Path '${OUT_DIR}' -DestinationPath '${zipOut}' -Force"`, { timeout: 300000 });
       console.log(`[build] Zip: ${zipOut}`);
     } catch (err) {
       console.log(`[build] Zip failed (try manual): ${err.message}`);

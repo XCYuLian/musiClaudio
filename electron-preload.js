@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('claudio', {
   // API service management
   pingApi: () => ipcRenderer.invoke('api:ping'),
   pingProxy: () => ipcRenderer.invoke('proxy:ping'),
+  refillQueue: () => ipcRenderer.invoke('queue:refill'),
 
   // Listen for scheduler broadcasts
   onBroadcast: (callback) => {
