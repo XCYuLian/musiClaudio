@@ -25,6 +25,7 @@ function createWindow() {
     minHeight: 680,
     frame: false,
     transparent: false,
+    icon: path.join(__dirname, 'Crt', 'App icon.png'),
     backgroundColor: '#0a0a0a',
     resizable: true,
     webPreferences: {
@@ -269,3 +270,4 @@ app.on('window-all-closed', () => {
   proxy.stop();
   app.quit();
 });
+process.on('exit', () => proxy.stop());

@@ -158,18 +158,21 @@ html, body {
   color: #b388ff;
   font-family: 'Consolas', 'Courier New', monospace;
   text-shadow: 0 0 12px rgba(179,136,255,0.5);
+  -webkit-app-region: no-drag;
+  cursor: pointer; user-select: none;
 }
 .btn-ghost {
-  border: 1px solid #b388ff44; background: transparent;
-  color: #b388ff; font-family: 'Consolas', 'Courier New', monospace;
+  border: 1px solid #b388ff33; background: transparent;
+  color: #b388ffcc; font-family: 'Consolas', 'Courier New', monospace;
   font-size: 10px; font-weight: 700;
-  letter-spacing: 2px; padding: 5px 12px; cursor: pointer;
-  transition: all .2s;
+  letter-spacing: 2px; padding: 5px 10px; cursor: pointer;
+  transition: all .15s; white-space: nowrap;
 }
 .btn-ghost:hover {
-  background: #b388ff15; border-color: #b388ff88;
-  box-shadow: 0 0 10px rgba(179,136,255,0.2);
+  background: #b388ff12; border-color: #b388ff88;
+  box-shadow: 0 0 8px rgba(179,136,255,0.15); color: #b388ff;
 }
+.header-right { gap: 6px; }
 
 /* ═══════════════════════════════════════════════════════
    CLOCK
@@ -380,11 +383,11 @@ html, body {
    QUEUE — scrollable with max-height
    ═══════════════════════════════════════════════════════ */
 #queue-area {
-  margin: 16px 16px 0; flex: 3; min-height: 0;
+  margin: 16px 16px 0; flex: 4; min-height: 0;
   display: flex; flex-direction: column;
 }
 #ai-area {
-  margin: 8px 16px 0; flex: 7; min-height: 0;
+  margin: 8px 16px 0; flex: 6; min-height: 0;
   display: flex; flex-direction: column;
 }
 .queue-list {
@@ -549,6 +552,16 @@ html, body {
   padding: 8px 12px;
   font-size: 12px;
 }
+/* System log — dim, small, no avatar */
+.chat-msg.system {
+  padding-left: 0; justify-content: center;
+}
+.chat-msg.system .msg-bubble {
+  background: transparent; border: none; padding: 2px 8px;
+  font-size: 10px; color: #555; max-width: 95%;
+  text-align: center; font-style: italic;
+}
+/* Reply bubble */
 .chat-msg.reply {
   padding-left: 36px; /* align with assistant avatar column */
 }
@@ -825,20 +838,6 @@ html, body {
 }
 .setting-note.success { color: #69f0ae; }
 .setting-note.error { color: #ff6666; }
-/* ── API status row ── */
-.api-status-row {
-  display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
-}
-.api-dot {
-  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-  background: #555;
-}
-.api-dot.online { background: #69f0ae; box-shadow: 0 0 6px rgba(105,240,174,0.5); }
-.api-dot.offline { background: #ff6666; }
-.api-status-text {
-  font-size: 10px; font-weight: 600; color: #777; flex: 1;
-  font-family: 'Consolas', 'Courier New', monospace; letter-spacing: 1px;
-}
 
 .setting-divider {
   height: 1px; background: #ffffff08;

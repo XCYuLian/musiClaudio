@@ -37,6 +37,7 @@
     <div class="header-right">
       <button id="btn-theme" class="btn-ghost">DARK</button>
       <button id="btn-lang" class="btn-ghost">中文</button>
+      <button id="btn-favs" class="btn-ghost" title="收藏列表">❤️</button>
       <button id="btn-settings" class="btn-ghost" title="Settings">SET</button>
       <span class="win-dots">
         <button id="btn-min" title="Minimize">—</button>
@@ -149,13 +150,6 @@
   <section id="input-area">
     <div class="input-glow">
       <input type="text" id="chat-input" placeholder="Say something to Claudio..." autocomplete="off" spellcheck="false">
-      <button id="btn-mic" class="input-action" title="语音">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/>
-          <line x1="8" y1="23" x2="16" y2="23"/>
-        </svg>
-      </button>
       <button id="btn-send" class="input-action primary" title="发送">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/>
@@ -189,44 +183,15 @@
     <div class="settings-panel">
       <h3>— SETTINGS —</h3>
 
-      <!-- API Key -->
-      <div class="setting-section">
-        <div class="section-label">DEEPSEEK KEY</div>
-        <input type="password" id="api-key-input" placeholder="sk-..." class="setting-input">
-        <button id="btn-save-key" class="btn-import">SAVE KEY</button>
-        <p class="setting-note" id="api-key-note"></p>
-      </div>
-
-      <div class="setting-divider"></div>
-
-      <!-- Volcengine TTS -->
-      <div class="setting-section">
-        <div class="section-label">VOLCENGINE TTS</div>
-        <input type="text" id="volc-appid-input" placeholder="AppID" class="setting-input">
-        <input type="password" id="volc-token-input" placeholder="Access Token" class="setting-input">
-        <button id="btn-save-volc" class="btn-import">SAVE TTS</button>
-        <p class="setting-note" id="volc-note"></p>
-      </div>
-
-      <div class="setting-divider"></div>
-
-      <!-- Model -->
-      <div class="setting-section">
-        <div class="section-label">MODEL</div>
-        <select id="model-select"></select>
-        <p class="setting-note" id="model-note"></p>
-      </div>
-
-      <div class="setting-divider"></div>
 
       <!-- Netease Import -->
       <div class="setting-section">
         <div class="section-label">NETEASE IMPORT</div>
-        <div class="api-status-row">
-          <span class="api-dot" id="api-dot"></span>
-          <span class="api-status-text" id="api-status-text">API: checking...</span>
-        </div>
-        <input type="text" id="import-input" placeholder="NetEase UID or playlist link" class="setting-input">
+        <p class="setting-note" style="color:#888;margin-bottom:4px">导入你的网易云歌单，AI 会根据你的品味推荐音乐</p>
+        <input type="text" id="import-input" placeholder="输入 UID 或歌单链接" class="setting-input">
+        <p class="setting-note" style="color:#666;line-height:1.6;margin-bottom:8px">
+          如何获取：手机网易云 → 我的 → 头像 → 分享 → 复制链接 → 末尾 <b>id=</b> 后的数字
+        </p>
         <button id="btn-import" class="btn-import">IMPORT PLAYLISTS</button>
         <p class="setting-note" id="import-status"></p>
       </div>

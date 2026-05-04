@@ -1,1175 +1,424 @@
 /**
- * Claudio.fm Desktop Player — Renderer (Cyberpunk Edition)
+ * Claudio.fm Player — CLEAN V2
  */
-
-const $ = (s) => document.querySelector(s);
-const $$ = (s) => document.querySelectorAll(s);
+const $ = s => document.querySelector(s);
 
 // ── State ──
-let isPlaying = false;
-let queue = [];
-let currentQueueIdx = -1;
-let playerState = 'idle';
-let dark = true;
-let lang = localStorage.getItem('claudio_lang') || 'en';
-let chatMessages = [];
-let playHistory = JSON.parse(localStorage.getItem('claudio_history') || '[]');
-let isFetchingAI = false;  // prevent double-trigger
-
-function fmtNow() {
-  const now = new Date();
-  return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-}
+let queue = [], currentIdx = -1, playerState = 'idle', lang = localStorage.getItem('claudio_lang') || 'en';
+let chatMessages = [], playHistory = JSON.parse(localStorage.getItem('claudio_history') || '[]');
+let _recent = [], _busy = false;
 
 // ── i18n ──
 const T = {
   en: {
-    settings: 'SET', onAir: 'ON AIR',
-    playing: 'PLAYING', ready: 'READY', idle: 'IDLE',
-    queue: 'QUEUE', tracks: 'TRACKS', queueEmpty: '— QUEUE EMPTY —',
-    queueEmptyHint: 'Import your playlist in Settings →',
-    aiBadge: 'Claudio', aiPlaying: 'ONLINE',
-    aiWelcome: "Claudio.fm is online. I'm your personal AI radio DJ — ask me to play anything.",
-    aiWelcomeZh: '你的个人 AI 电台已上线，随时为你播放',
-    inputPlaceholder: 'Say something to Claudio...',
-    footerConnected: 'CONNECTED',
-    settingsTitle: '— SETTINGS —', modelLabel: 'MODEL',
-    modelCurrent: 'CURRENT:', modelSwitched: 'SWITCHED:', modelSwitchFail: 'SWITCH FAILED',
-    apiKeyLabel: 'API KEY', saveKey: 'SAVE KEY', savingKey: 'SAVING...',
-    keySaved: '•••••••• (saved)', keyInvalid: 'Enter a valid API key',
-    importPlaceholder: 'NetEase UID or playlist link',
-    importInvalid: 'Enter a valid UID or playlist link',
-    parseError: 'Cannot parse this link',
-    noPlaylists: 'No playlists found for this account',
-    neteaseLabel: 'NETEASE IMPORT', importBtn: 'IMPORT PLAYLISTS',
-    importing: 'IMPORTING...', closeBtn: 'CLOSE',
-    enterUid: 'Please enter your Netease User ID', connecting: 'Connecting...',
-    importDone: (n, p) => `${n} tracks in ${p} playlists imported.`,
-    audioError: 'Audio load failed — track may be VIP-only.',
-    connError: 'Connection failed. Check .env config.',
-    voiceNA: 'Voice input not yet available', voiceNAZh: '语音输入暂未接入 — 即将支持',
-    searching: 'SEARCHING...', resolved: 'RESOLVED', unavailable: 'UNAVAILABLE',
-    themeDark: 'DARK', themeLight: 'LIGHT',
-    days: ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
-    months: ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'],
+    idle:'IDLE',ready:'READY',playing:'PLAYING',connError:'Connection failed. Check .env config.',
+    trackError:'Track unavailable, switching...',unavailable:'No playable source',
+    days:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
+    months:['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'],
   },
   zh: {
-    settings: '设置', onAir: '直播中',
-    playing: '播放中', ready: '就绪', idle: '待机',
-    queue: '队列', tracks: '首', queueEmpty: '— 队列为空 —',
-    queueEmptyHint: '在设置中导入你的网易云歌单 →',
-    aiBadge: 'Claudio', aiPlaying: '在线',
-    aiWelcome: 'Claudio.fm 已上线。我是你的私人 AI 电台 DJ —— 想听什么，跟我说。',
-    aiWelcomeZh: '你的个人 AI 电台已上线，随时为你播放',
-    inputPlaceholder: '对 Claudio 说点什么...',
-    footerConnected: '已连接',
-    settingsTitle: '— 设置 —', modelLabel: '模型',
-    modelCurrent: '当前：', modelSwitched: '已切换：', modelSwitchFail: '切换失败',
-    apiKeyLabel: 'API 密钥', saveKey: '保存密钥', savingKey: '保存中...',
-    keySaved: '•••••••• (已保存)', keyInvalid: '请输入有效的 API 密钥',
-    importPlaceholder: '输入网易云 UID 或歌单链接',
-    importInvalid: '请输入有效的 UID 或歌单链接',
-    parseError: '无法解析此链接',
-    noPlaylists: '该账号未找到公开歌单',
-    neteaseLabel: '网易云导入', importBtn: '导入歌单',
-    importing: '导入中...', closeBtn: '关闭',
-    enterUid: '请输入网易云用户 ID', connecting: '连接中...',
-    importDone: (n, p) => `已导入 ${n} 首，共 ${p} 个歌单。`,
-    audioError: '音频加载失败 —— 可能为 VIP 限定曲目。',
-    connError: '连接失败，请检查 .env 配置。',
-    voiceNA: '语音输入暂未接入', voiceNAZh: '语音输入暂未接入 — 即将支持',
-    searching: '搜索中...', resolved: '已解析', unavailable: '无法获取播放源',
-    themeDark: '暗黑', themeLight: '浅色',
-    days: ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'],
-    months: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+    idle:'待机',ready:'就绪',playing:'播放中',connError:'连接失败，请检查配置',
+    trackError:'音源不可用，自动切换中',unavailable:'无法获取播放源',
+    days:['星期日','星期一','星期二','星期三','星期四','星期五','星期六'],
+    months:['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
   }
 };
+function t(k) { return T[lang]?.[k] || T.en[k] || k; }
 
-function t(key, ...args) {
-  const str = T[lang]?.[key] || T.en[key] || key;
-  return typeof str === 'function' ? str(...args) : str;
+// ── Helpers ──
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function fmtNow() { const n = new Date(); return String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0'); }
+function fmtTime(s) { const m = Math.floor(s/60), sec = Math.floor(s%60); return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0'); }
+
+// ── Player state ──
+function setPlayerState(st) {
+  playerState = st;
+  const el = $('#np-label-text'); if (el) el.textContent = t(st);
+  $('#btn-play').disabled = (st === 'idle');
 }
 
-function applyLanguage() {
-  // data-i18n inline spans (mixed text+children)
-  document.querySelectorAll('[data-i18n]').forEach(el => {
-    const key = el.dataset.i18n;
-    if (T[lang][key]) el.textContent = T[lang][key];
-  });
-  // Static standalone text
-  document.querySelector('.section-title').textContent = t('queue');
-  document.querySelector('.settings-panel h3').textContent = t('settingsTitle');
-  const secLabels = document.querySelectorAll('.settings-panel .section-label');
-  // Order in settings: API KEY, MODEL, NETEASE IMPORT
-  if (secLabels[0]) secLabels[0].textContent = t('apiKeyLabel');
-  if (secLabels[1]) secLabels[1].textContent = t('modelLabel');
-  if (secLabels[2]) secLabels[2].textContent = t('neteaseLabel');
-  // Buttons
-  $('#btn-save-key').textContent = t('saveKey');
-  $('#btn-import').textContent = t('importBtn');
-  $('#btn-settings-close').textContent = t('closeBtn');
-  $('#btn-settings').textContent = t('settings');
-  // Input placeholders
-  $('#chat-input').placeholder = t('inputPlaceholder');
-  $('#import-input').placeholder = t('importPlaceholder');
-  // Theme & lang buttons
-  $('#btn-theme').textContent = dark ? t('themeDark') : t('themeLight');
-  $('#btn-lang').textContent = lang === 'en' ? '中文' : 'EN';
-  // Dynamic re-renders
-  setPlayerState(playerState);
-  renderQueue();
+// ── Chat ──
+function showChat(speech, hasTracks) {
+  if (!speech) return;
+  chatMessages.push({ role:'assistant', say:speech, time:fmtNow(), hasTracks });
   renderChat();
-  renderHistory();
-  updateClock();
+}
+function renderChat() {
+  const c = document.getElementById('ai-chat');
+  if (!c) return;
+  if (!chatMessages.length) { c.innerHTML = '<div class="chat-msg assistant"><div class="msg-avatar">♪</div><div class="msg-bubble"><div class="ai-en">电台已就绪</div></div></div>'; return; }
+  c.innerHTML = chatMessages.map(m => {
+    const userCls = m.role==='user'?'user':'assistant';
+    const avatar = m.role==='user'?'':'<div class="msg-avatar">♪</div>';
+    const bubble = m.role==='user'
+      ? `<div class="msg-bubble">${esc(m.content||m.say||'')}</div>`
+      : `<div class="msg-bubble"><div class="ai-en">${esc(m.say||'')}</div><div class="msg-meta"><span class="msg-time">${m.time}</span></div></div>`;
+    return `<div class="chat-msg ${userCls}">${avatar}${bubble}</div>`;
+  }).join('');
+  c.scrollTop = c.scrollHeight;
 }
 
-// ═══════════════════════════════════════════════════════
-// LOGIN — Intercept before main UI
-// ═══════════════════════════════════════════════════════
-function initLogin() {
-  const overlay = $('#login-overlay');
-  const input = $('#login-uid');
-  const btn = $('#btn-login');
-  const note = $('#login-note');
-  const btnSkip = $('#btn-login-skip');
-  const btnGuide = $('#btn-login-guide');
+// ── Queue ──
+function renderQueue() {
+  const c = $('#queue-list'), cnt = $('#queue-count');
+  cnt.textContent = queue.length + ' tracks';
+  if (!queue.length) { c.innerHTML = '<div class="queue-empty">— 队列为空 —</div>'; return; }
+  c.innerHTML = queue.map((t,i) => {
+    const act = i === currentIdx, dead = !t.url;
+    const cls = act ? 'queue-track active' : (dead?'queue-track dead':'queue-track');
+    const dot = act ? '<span class="dot-pulse green sm" style="margin-right:6px"></span>' : '';
+    return `<div class="${cls}"><span class="queue-idx">${String(i+1).padStart(2,'0')}</span><div class="queue-body"><div class="qt-title">${dot}${esc(t.label||t.name||'?')}</div></div></div>`;
+  }).join('');
+  $('#btn-prev').disabled = currentIdx <= 0;
+  $('#btn-next').disabled = !queue.length;
+}
 
-  // Default key is built-in — always go straight to main UI
-  overlay.classList.add('hidden');
-  return false;
+// ── Progress bar seeking ──
+let _dragging = false;
+function initSeek() {
+  const track = $('#progress-track');
+  const thumb = $('#progress-thumb');
+  const hover = $('#hover-time');
+  const a = $('#audio');
 
-  // Login is now optional; user can trigger it from Settings → import
+  const getPct = (e) => { const r = track.getBoundingClientRect(); const x = e.clientX - r.left; return Math.max(0, Math.min(100, (x/r.width)*100)); };
 
-  // Window controls on login screen
-  $('#login-btn-min').addEventListener('click', () => window.claudio.minimize());
-  $('#login-btn-close').addEventListener('click', () => window.claudio.close());
-  btnSkip.addEventListener('click', () => overlay.classList.add('hidden'));
-  btnGuide.addEventListener('click', () => {
-    const tip = $('#login-guide-tip');
-    tip.style.display = tip.style.display === 'none' ? 'block' : 'none';
+  track.addEventListener('mousedown', (e) => {
+    _dragging = true; track.classList.add('dragging');
+    const pct = getPct(e); if (a.duration) a.currentTime = (pct/100) * a.duration;
   });
-
-  btn.addEventListener('click', async () => {
-    const uid = input.value.trim();
-    if (!uid || !/^\d+$/.test(uid)) {
-      note.textContent = '请输入有效的网易云用户 ID（纯数字）';
+  document.addEventListener('mousemove', (e) => {
+    if (!_dragging) {
+      if (a.duration && track.matches(':hover')) { const pct = getPct(e); hover.textContent = fmtTime((pct/100)*a.duration); hover.style.left = pct+'%'; hover.classList.add('visible'); }
+      else hover.classList.remove('visible');
       return;
     }
-    btn.disabled = true; btn.textContent = '导入中...'; note.textContent = '';
-    try {
-      localStorage.setItem('user_uid', uid);
-      const result = await window.claudio.importNetease(uid, '');
-      if (result.ok) {
-        note.style.color = '#69f0ae';
-        note.textContent = `已导入 ${result.totalTracks} 首歌曲`;
-        setTimeout(() => overlay.classList.add('hidden'), 1000);
-      } else {
-        note.style.color = '#ff6666';
-        note.textContent = result.error || '导入失败';
-        btn.disabled = false; btn.textContent = '重试';
-      }
-    } catch (err) {
-      note.textContent = '连接失败：' + err.message;
-      btn.disabled = false; btn.textContent = '重试';
-    }
+    const pct = getPct(e); if (a.duration) a.currentTime = (pct/100) * a.duration;
   });
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); });
+  document.addEventListener('mouseup', () => { if (_dragging) { _dragging = false; track.classList.remove('dragging'); saveState(); } });
 }
 
-// ── Responsive resize ──
-function initResize() {
-  const update = () => {
-    const h = window.innerHeight;
-    // AI chat minimum visibility
-    const aiChat = $('#ai-chat');
-    if (aiChat) aiChat.style.minHeight = h < 600 ? '120px' : 'auto';
-  };
-  window.addEventListener('resize', update);
-  update();
+// ── Audio ──
+function playAudio(url) {
+  const a = $('#audio'); a.src = url; setPlayerState('ready');
+  a.play().catch(()=>{});
+  _busy = false;
+  addHistory($('#np-title').textContent, $('#np-artist').textContent);
+}
+
+function initAudio() {
+  const a = $('#audio');
+  $('#btn-play').disabled = true;
+  $('#btn-play').addEventListener('click', () => {
+    if (a.src && !a.src.endsWith('null')) { if (a.paused) a.play().catch(()=>{}); else a.pause(); }
+  });
+  $('#btn-prev').addEventListener('click', () => skip(-1));
+  $('#btn-next').addEventListener('click', () => skip(1));
+
+  a.addEventListener('play', () => { $('#icon-play').style.display='none'; $('#icon-pause').style.display=''; setPlayerState('playing'); });
+  a.addEventListener('pause', () => { $('#icon-play').style.display=''; $('#icon-pause').style.display='none'; if (a.src) setPlayerState('ready'); });
+  a.addEventListener('ended', () => { autoNext(); });
+  a.addEventListener('error', () => { setPlayerState('idle'); autoNext(); });
+
+  let lastSave = 0;
+  a.addEventListener('timeupdate', () => {
+    if (a.duration && isFinite(a.duration)) {
+      const pct = (a.currentTime/a.duration*100);
+      if (!_dragging) { $('#progress-fill').style.width = pct+'%'; $('#progress-thumb').style.left = pct+'%'; }
+      $('#time-now').textContent = fmtTime(a.currentTime);
+      $('#time-total').textContent = fmtTime(a.duration);
+    }
+    // Pre-fetch at 10s remaining
+    if (a.duration && a.duration-a.currentTime < 10 && !_busy) { _busy = true; refill(); }
+    // Seek-to-end → skip
+    if (a.duration>5 && a.currentTime >= a.duration-0.5) { a.pause(); autoNext(); }
+    // Save
+    const now = Date.now();
+    if (now-lastSave>3000) { lastSave=now; saveState(); }
+  });
+  initSeek();
+}
+
+function autoNext() {
+  let ni = currentIdx + 1;
+  while (ni < queue.length && !queue[ni]?.url) ni++;
+  if (ni < queue.length && queue[ni]?.url) {
+    currentIdx = ni; renderQueue();
+    const t = queue[currentIdx];
+    updatePlayerInfo(t.label||t.name, t.album||'');
+    playAudio(t.url);
+  } else {
+    setPlayerState('idle');
+    refill();
+  }
+}
+
+function skip(dir) {
+  if (!queue.length) return refill();
+  let ni = currentIdx + dir;
+  while (ni>=0 && ni<queue.length && !queue[ni]?.url) ni += dir;
+  if (ni<0) return;
+  if (ni>=queue.length) { setPlayerState('idle'); return refill(); }
+  currentIdx = ni; renderQueue();
+  const t = queue[currentIdx];
+  if (t?.url) { updatePlayerInfo(t.label||t.name, t.album||''); playAudio(t.url); }
+}
+
+function updatePlayerInfo(title, sub) {
+  $('#np-title').textContent = title||'Claudio.fm';
+  $('#np-artist').textContent = sub||'';
+}
+
+// ── History ──
+function addHistory(title, artist) {
+  if (!title||title==='—') return;
+  playHistory = playHistory.filter(h=>h.title!==title);
+  playHistory.unshift({title,artist,time:fmtNow()});
+  if (playHistory.length>20) playHistory = playHistory.slice(0,20);
+  localStorage.setItem('claudio_history', JSON.stringify(playHistory));
+  _recent.push(title+' — '+artist); if (_recent.length>10) _recent=_recent.slice(-10);
+  renderHistory();
+}
+function renderHistory() {
+  const c = $('#history-list');
+  if (!playHistory.length) { c.innerHTML=''; return; }
+  c.innerHTML = '<div class="history-head">RECENT</div>'+playHistory.slice(0,5).map(h=>`<div class="history-item"><span class="hi-time">${h.time}</span><span class="hi-title">${esc(h.title)}${h.artist?' — '+esc(h.artist):''}</span></div>`).join('');
+}
+
+// ── Save/Load ──
+function saveState() {
+  const a = $('#audio'); if (!a.src||a.src.endsWith('null')) return;
+  localStorage.setItem('claudio_playback', JSON.stringify({url:a.src,title:$('#np-title').textContent,artist:$('#np-artist').textContent,position:a.currentTime}));
+}
+function loadState() {
+  try {
+    const s = JSON.parse(localStorage.getItem('claudio_playback')); if (!s?.url) return;
+    if (JSON.parse(localStorage.getItem('claudio_playback')||'{}').queue?.length>20) localStorage.removeItem('claudio_playback');
+    queue=[{label:s.title,name:s.title,url:s.url}];currentIdx=0;renderQueue();
+    updatePlayerInfo(s.title,s.artist);
+    const a=$('#audio');a.src=s.url;a.currentTime=s.position||0;setPlayerState('ready');a.play().catch(()=>{});
+  } catch {}
+}
+
+// ── AI Fetch ──
+async function fetchAI(msg, hidden) {
+  if (_busy) return; _busy = true;
+  try {
+    const m = hidden ? hidden+'\n'+msg : msg;
+    const ctx = _recent.length ? '[最近播放：'+_recent.join(' → ')+']\n'+m : m;
+    const res = await window.claudio.sendMessage(ctx);
+    if (!res.ok) throw new Error(res.error);
+    handleResponse(res);
+  } catch(e) { showChat(t('connError'),false); _busy = false; }
+}
+
+async function refill() {
+  if (_busy) return;
+  const h = new Date().getHours();
+  const mood = h<6?'深夜':h<9?'清晨':h<12?'上午':h<14?'午后':h<17?'下午':h<19?'傍晚':'夜晚';
+  fetchAI(mood+'了，推荐下一首', '');
+}
+
+// ── Handle AI response ──
+function handleResponse(data) {
+  const sysLog = data.system_log || '';
+  const djSpeech = data.dj_speech || data.speech || data.monologue || data.say || '';
+  const action = data.action_type || 'chat_only';
+  const query = data.search_query || null;
+  const tracks = data.tracks || [];
+  const hasTracks = tracks.length > 0 && tracks.some(t=>t.url);
+  const ttsFile = data.tts;
+
+  // Show system_log dim, dj_speech normal
+  if (sysLog) {
+    chatMessages.push({ role:'system', say:sysLog, time:fmtNow(), hasTracks:false });
+    renderChat();
+  }
+
+  // chat_only → just speak, NEVER touch music
+  if (action === 'chat_only') {
+    showChat(djSpeech, false);
+    // TTS without changing music
+    if (ttsFile && ttsFile.startsWith('data:')) {
+      const a = document.getElementById('audio');
+      const v = a ? a.volume : 1;
+      if (a && a.src && !a.src.endsWith('null')) fadeVol(a, v, 0.10, () => {
+        const tts = new Audio(ttsFile); tts.volume = v;
+        tts.onended = () => { fadeVol(a, a.volume, v); _busy = false; };
+        tts.onerror = () => { _busy = false; };
+        tts.play().catch(()=>{ _busy = false; });
+      });
+      else {
+        const tts = new Audio(ttsFile); tts.volume = v;
+        tts.onended = () => { _busy = false; };
+        tts.play().catch(()=>{ _busy = false; });
+      }
+    } else {
+      _busy = false;
+    }
+    return;
+  }
+
+  // change_song → actually play new music
+  showChat(djSpeech, hasTracks);
+  if (hasTracks) {
+    const isAuto = data.type === 'scheduled' || data.trigger === 'startup';
+    queue = (isAuto && queue.length) ? [...queue, ...tracks] : tracks;
+    if (!isAuto) currentIdx = 0;
+    renderQueue();
+    const tr = tracks[0];
+    updatePlayerInfo(tr.label||tr.name, tr.album||'');
+    if (ttsFile && ttsFile.startsWith('data:')) {
+      const a = document.getElementById('audio');
+      const v = a ? a.volume : 1;
+      fadeVol(a, v, 0.10, () => {
+        const tts = new Audio(ttsFile); tts.volume = v;
+        tts.onended = () => { fadeVol(a, a.volume, v); _busy=false; setTimeout(()=>playAudio(tr.url),400); };
+        tts.onerror = () => { _busy=false; playAudio(tr.url); };
+        tts.play().catch(()=>{ _busy=false; playAudio(tr.url); });
+        setTimeout(()=>{if(!tts.ended){_busy=false;playAudio(tr.url);}},20000);
+      });
+    } else { _busy = false; playAudio(tr.url); }
+  } else {
+    _recent.push(query||''); if (_recent.length>10) _recent=_recent.slice(-10);
+    showChat(`"${query}" 无原唱音源，换一首`, false); _busy = false;
+    setTimeout(refill, 500);
+  }
+}
+
+function fadeVol(a, from, to, onDone) {
+  if (!a || !a.src || a.src.endsWith('null')) { if (onDone) onDone(); return; }
+  const steps = 6, dur = 400, delta = (to - from) / steps;
+  let s = 0, cur = from;
+  const t = setInterval(() => {
+    s++; cur += delta;
+    a.volume = Math.max(to, Math.min(from, cur));
+    if (s >= steps) { clearInterval(t); a.volume = to; if (onDone) onDone(); }
+  }, dur / steps);
 }
 
 // ── Init ──
 document.addEventListener('DOMContentLoaded', () => {
-  const loginShown = initLogin();
-  initClock();
-  initWindowControls();
-  initChat();
-  initAudio();
-  initVolume();
-  initQueue();
-  initAI();
-  initSettings();
-  initSchedulerListener();
-  initThemeToggle();
-  initLangToggle();
-  applyLanguage();
-  initResize();
-
-  if (!loginShown) {
-    // Resume last playback
-    setTimeout(loadPlaybackState, 800);
-    // Load saved playlist
-    setTimeout(loadSavedPlaylist, 1200);
-  }
+  initClock(); initAudio(); initVolume(); initChat(); initLogoTap(); renderQueue(); renderChat(); renderHistory();
+  initSettings(); initFavs();
+  $('#btn-min').addEventListener('click',()=>window.claudio.minimize());
+  $('#btn-close').addEventListener('click',()=>window.claudio.close());
+  $('#btn-lang').addEventListener('click',()=>{lang=lang==='en'?'zh':'en';localStorage.setItem('claudio_lang',lang);$('#btn-lang').textContent=lang==='en'?'中文':'EN';updateClock();});
+  window.claudio.onBroadcast(data => handleResponse(data));
+  setTimeout(loadState, 300);
 });
 
-// ═══════════════════════════════════════════════════════
-// CLOCK — Live digital, language-aware date format
-// ═══════════════════════════════════════════════════════
 function updateClock() {
-  const now = new Date();
-  $('#clock-time').textContent =
-    `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const n=new Date();
+  $('#clock-time').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
+  const days=t('days'),months=t('months');
+  $('#clock-date').textContent=lang==='zh'?n.getFullYear()+'年'+months[n.getMonth()]+n.getDate()+'日 '+days[n.getDay()]:days[n.getDay()]+' '+String(n.getDate()).padStart(2,'0')+' '+months[n.getMonth()]+' '+n.getFullYear();
+}
+function initClock() { updateClock(); setInterval(updateClock, 1000); }
 
-  const days = t('days');
-  const months = t('months');
-  if (lang === 'zh') {
-    $('#clock-date').textContent =
-      `${now.getFullYear()}年${months[now.getMonth()]}${now.getDate()}日 ${days[now.getDay()]}`;
-  } else {
-    $('#clock-date').textContent =
-      `${days[now.getDay()]} ${String(now.getDate()).padStart(2, '0')} ${months[now.getMonth()]} ${now.getFullYear()}`;
+// ── Easter egg: command interception ──
+const EASTER_TRIGGERS = ['/sudo creator', '你是谁做的', 'who made you', '谁做的'];
+function checkEasterEgg(msg) {
+  const m = msg.toLowerCase().trim();
+  if (EASTER_TRIGGERS.some(t => m.includes(t.toLowerCase()))) {
+    const a = document.getElementById('audio');
+    if (a && a.src) fadeVol(a, a.volume, 0.10);
+    // Grid flash
+    const app = document.getElementById('app');
+    app.style.filter = 'brightness(1.5)';
+    setTimeout(() => app.style.filter = '', 300);
+    // Secret message
+    const sec = '你触发了隐藏频段。本电台由台长 Galton欣城 于 2026 年无数个熬夜的深夜中构建。祝你今夜好梦。';
+    chatMessages.push({ role:'assistant', say:sec, time:fmtNow(), hasTracks:false, isEaster:true });
+    renderChat();
+    // Play secret voice via system TTS
+    if ('speechSynthesis' in window) {
+      const u = new SpeechSynthesisUtterance(sec);
+      u.lang = 'zh-CN'; u.rate = 0.85;
+      const done = () => { if (a) fadeVol(a, a.volume||1, a.volume||1); };
+      u.onend = done; u.onerror = done;
+      speechSynthesis.cancel();
+      setTimeout(() => speechSynthesis.speak(u), 500);
+    }
+    return true;
   }
+  return false;
 }
 
-function initClock() {
-  updateClock();
-  setInterval(updateClock, 1000);
-}
-
-// ═══════════════════════════════════════════════════════
-// WINDOW CONTROLS
-// ═══════════════════════════════════════════════════════
-function initWindowControls() {
-  $('#btn-min').addEventListener('click', () => window.claudio.minimize());
-  $('#btn-max').addEventListener('click', () => window.claudio.maximize());
-  $('#btn-close').addEventListener('click', () => window.claudio.close());
-}
-
-// ═══════════════════════════════════════════════════════
-// PLAYER STATE — idle / ready / playing
-// ═══════════════════════════════════════════════════════
-function setPlayerState(state) {
-  playerState = state;
-  const label = $('#np-label-text');
-  const playBtn = $('#btn-play');
-  if (label) label.textContent = t(state);
-  playBtn.disabled = (state === 'idle');
-}
-
-// ═══════════════════════════════════════════════════════
-// CHAT — Glowing input → backend → UI update
-// ═══════════════════════════════════════════════════════
-// ── AI fetch wrapper with state lock ──
-async function fetchAI(userMessage, hiddenContext = '') {
-  if (isFetchingAI) { console.log('[lock] AI already fetching, skipping'); return; }
-  isFetchingAI = true;
-  try {
-    const msg = hiddenContext ? `${hiddenContext}\n${userMessage}` : userMessage;
-    const res = await window.claudio.sendMessage(msg);
-    if (!res.ok) throw new Error(res.error);
-    handleDJResponse(res);
-  } catch (err) {
-    showAI(t('connError'), err.message);
-  } finally {
-    isFetchingAI = false;
-  }
+// ── Easter egg: 7-tap logo → developer mode ──
+let _logoTaps = 0, _logoTimer = null;
+function initLogoTap() {
+  const logo = document.querySelector('.logo');
+  if (!logo) return;
+  logo.style.cursor = 'pointer';
+  // Prevent double-click maximize
+  logo.addEventListener('dblclick', e => { e.preventDefault(); e.stopPropagation(); });
+  logo.addEventListener('mousedown', e => {
+    e.preventDefault();
+    _logoTaps++;
+    if (_logoTimer) clearTimeout(_logoTimer);
+    _logoTimer = setTimeout(() => { _logoTaps = 0; }, 2500);
+    if (_logoTaps >= 7) {
+      _logoTaps = 0; clearTimeout(_logoTimer);
+      chatMessages.push({ role:'assistant', say:'Created by Galton欣城', time:fmtNow(), hasTracks:false, isDev:true });
+      renderChat();
+      const anthem = new Audio('Crt/TEMPOREX - Daydream.mp3');
+      const a = document.getElementById('audio');
+      if (a && a.src) fadeVol(a, a.volume, 0.15, () => anthem.play());
+      else anthem.play();
+      anthem.onended = () => { if (a && a.src) fadeVol(a, 0.15, a.volume||1); };
+    }
+  });
 }
 
 function initChat() {
-  const input = $('#chat-input');
-  const btn = $('#btn-send');
-
-  async function send() {
-    const msg = input.value.trim();
-    if (!msg) return;
-    input.value = '';
-    setInputDisabled(true);
-    chatMessages.push({ role: 'user', content: msg, time: fmtNow() });
-    renderChat();
-    await fetchAI(msg);
-    setInputDisabled(false);
-    input.focus();
-  }
-
-  btn.addEventListener('click', send);
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') send();
+  const input=$('#chat-input'),btn=$('#btn-send');
+  btn.addEventListener('click',()=>{
+    const m=input.value.trim();if(!m)return;input.value='';
+    chatMessages.push({role:'user',content:m,time:fmtNow()});renderChat();
+    if (checkEasterEgg(m)) return;
+    fetchAI(m,'');
   });
-
-  // Mic button — placeholder for voice input
-  $('#btn-mic').addEventListener('click', () => {
-    showAI(t('voiceNA'), t('voiceNAZh'));
-  });
+  input.addEventListener('keydown',e=>{if(e.key==='Enter')btn.click();});
 }
 
-function setInputDisabled(disabled) {
-  $('#chat-input').disabled = disabled;
-  $('#btn-send').disabled = disabled;
-}
-
-// ═══════════════════════════════════════════════════════
-// DJ RESPONSE — Route to AI bubble, queue, player, audio
-// ═══════════════════════════════════════════════════════
-function handleDJResponse(data) {
-  const hasTracks = data.tracks?.length > 0;
-  const hasPlay = data.play?.length > 0;
-
-  // Dual-track: reply (direct answer) + monologue (DJ broadcast)
-  const reply = data.reply || data.say || '';
-  const monologue = data.monologue || (data.reply ? '' : data.say) || '';
-  const reason = data.reason || '';
-
-  if (reply) {
-    chatMessages.push({
-      role: 'assistant', say: reply, reason: '',
-      time: fmtNow(), hasTracks: false, isReply: true,
-    });
-  }
-  if (monologue) {
-    chatMessages.push({
-      role: 'assistant', say: monologue, reason,
-      time: fmtNow(), hasTracks,
-    });
-  }
-  renderChat();
-
-  // Queue logic: replace if music intent, append if question/chat
-  const isQuestion = !!reply;
-  const isAuto = data.type === 'scheduled' || data.type === 'system' || data.trigger === 'startup';
-  const shouldAppend = (isQuestion || isAuto) && queue.length > 0;
-  if (hasTracks) {
-    if (shouldAppend) {
-      queue = [...queue, ...data.tracks];
-    } else {
-      queue = data.tracks;
-      currentQueueIdx = 0;
-    }
-    renderQueue();
-  } else if (hasPlay) {
-    if (shouldAppend) {
-      queue = [...queue, ...data.play.map(name => ({ label: name, name }))];
-    } else {
-      queue = data.play.map(name => ({ label: name, name }));
-      currentQueueIdx = 0;
-    }
-    renderQueue();
-  }
-
-  // Player — TTS speech → then music
-  const ttsText = data.say || data.monologue || data.reply || '';
-  const ttsFile = data.tts; // Volcengine file path, if available
-  if (!shouldAppend && hasTracks) {
-    const tr = data.tracks[0];
-    updatePlayerInfo(tr.label || tr.name, tr.album || '');
-    if (tr.url) {
-      const playMusic = () => setTimeout(() => playAudio(tr.url), 400);
-
-      if (ttsFile) {
-        // Volcengine TTS MP3 → then music
-        const ttsAudio = new Audio('file:///' + ttsFile.replace(/\\/g, '/'));
-        ttsAudio.volume = $('#audio').volume;
-        ttsAudio.onended = playMusic;
-        ttsAudio.onerror = () => playMusic();
-        ttsAudio.play().catch(() => playMusic());
-        setTimeout(() => { if (!ttsAudio.ended) playMusic(); }, 15000);
-      } else if (ttsText && 'speechSynthesis' in window) {
-        // Chromium built-in TTS → then music
-        speakText(ttsText, playMusic);
-        setTimeout(() => { const a = $('#audio'); if (!a.src || a.paused) playMusic(); }, 15000);
-      } else {
-        playAudio(tr.url);
-      }
-    } else {
-      setPlayerState('idle');
-    }
-  } else if (!shouldAppend && hasPlay) {
-    updatePlayerInfo(data.play[0], t('unavailable'));
-    setPlayerState('idle');
-  }
-}
-
-// ═══════════════════════════════════════════════════════
-// CHAT HISTORY — scrollable message bubbles
-// ═══════════════════════════════════════════════════════
-function renderChat() {
-  const container = $('#ai-chat');
-  if (!chatMessages.length) {
-    container.innerHTML = `<div class="chat-msg assistant">
-      <div class="msg-avatar">♪</div>
-      <div class="msg-bubble">
-        <div class="ai-en">${esc(t('aiWelcome'))}</div>
-        <div class="ai-zh">${esc(t('aiWelcomeZh'))}</div>
-      </div>
-    </div>`;
-    return;
-  }
-  container.innerHTML = chatMessages.map(msg => {
-    if (msg.role === 'user') {
-      return `<div class="chat-msg user">
-        <div class="msg-bubble">${esc(msg.content)}</div>
-        <div class="msg-meta"><span class="msg-time">${msg.time}</span></div>
-      </div>`;
-    }
-    // Assistant: reply (direct answer) vs monologue (DJ broadcast)
-    const cls = msg.isReply ? 'reply' : 'assistant';
-    const avatar = msg.isReply ? '' : '<div class="msg-avatar">♪</div>';
-    const meta = msg.isReply
-      ? `<div class="msg-meta"><span class="msg-time">${msg.time}</span></div>`
-      : `<div class="msg-meta">
-          <span class="msg-time">${msg.time}</span>
-          ${msg.hasTracks ? '<span class="msg-badge">♪ TRACKS</span>' : ''}
-        </div>`;
-    return `<div class="chat-msg ${cls}">
-      ${avatar}
-      <div class="msg-bubble ${msg.isReply ? 'reply-bubble' : ''}">
-        <div class="ai-en">${esc(msg.say || '')}</div>
-        ${msg.reason ? `<div class="ai-zh">${esc(msg.reason)}</div>` : ''}
-        ${meta}
-      </div>
-    </div>`;
-  }).join('');
-  container.scrollTop = container.scrollHeight;
-}
-
-function showAI(textEn, textZh, hasTracks = false) {
-  chatMessages.push({
-    role: 'assistant',
-    say: textEn,
-    reason: textZh,
-    time: fmtNow(),
-    hasTracks,
-  });
-  renderChat();
-}
-
-function initAI() {
-  renderChat();
-}
-
-// ═══════════════════════════════════════════════════════
-// PLAYER INFO
-// ═══════════════════════════════════════════════════════
-function updatePlayerInfo(title, sub) {
-  $('#np-title').textContent = title || 'Claudio.fm';
-  $('#np-artist').textContent = sub || '';
-  // Update fav icon
-  try {
-    const favs = JSON.parse(localStorage.getItem('claudio_favs') || '[]');
-    $('#btn-fav').classList.toggle('liked', favs.some(f => f.title === title));
-  } catch { /* ignore */ }
-}
-
-// ═══════════════════════════════════════════════════════
-// QUEUE — Track list with current-song highlight
-// ═══════════════════════════════════════════════════════
-function initQueue() { renderQueue(); }
-
-async function checkRefill() {
-  const remaining = queue.slice(currentQueueIdx + 1).filter(t => t.url).length;
-  if (remaining === 0 && !isFetchingAI) {
-    console.log('[refill] Queue empty, triggering AI for next track...');
-    const hour = new Date().getHours();
-    const mood = hour < 6 ? '深夜' : hour < 9 ? '清晨' : hour < 12 ? '上午' : hour < 17 ? '下午' : '晚上';
-    fetchAI(`${mood}了，请推荐下一首歌。`, '');
-  }
-}
-
-function skipTrack(dir) {
-  if (!queue.length) return;
-  let newIdx = currentQueueIdx + dir;
-  // Skip dead tracks (no URL)
-  while (newIdx >= 0 && newIdx < queue.length) {
-    if (queue[newIdx]?.url) break;
-    newIdx += dir;
-  }
-  if (newIdx < 0 || newIdx >= queue.length) return;
-  currentQueueIdx = newIdx;
-  renderQueue();
-  const track = queue[currentQueueIdx];
-  if (track?.url) {
-    updatePlayerInfo(track.label || track.name, track.album || track.artists || '');
-    playAudio(track.url);
-  }
-  checkRefill();
-}
-
-function renderQueue() {
-  const container = $('#queue-list');
-  const count = $('#queue-count');
-  count.textContent = `${queue.length} ${t('tracks')}`;
-  // Enable skip buttons when queue is non-empty
-  const hasQ = queue.length > 0;
-  $('#btn-prev').disabled = !hasQ || currentQueueIdx <= 0;
-  $('#btn-next').disabled = !hasQ || currentQueueIdx >= queue.length - 1;
-
-  if (!queue.length) {
-    container.innerHTML = `<div class="queue-empty">${t('queueEmpty')}<br><span class="queue-hint">${t('queueEmptyHint')}</span></div>`;
-    return;
-  }
-
-  container.innerHTML = queue.map((tr, i) => {
-    const active = i === currentQueueIdx;
-    const dead = !tr.url;
-    const cls = active ? 'queue-track active' : (dead ? 'queue-track dead' : 'queue-track');
-    const dot = active ? '<span class="dot-pulse green sm" style="margin-right:6px"></span>' : (dead ? '<span class="dot-static" style="background:#444;margin-right:6px"></span>' : '');
-    const title = tr.label || tr.name || tr.title || '?';
-    const artist = tr.artist || tr.album || tr.sub || '';
-
-    return `
-      <div class="${cls}">
-        <span class="queue-idx">${String(i + 1).padStart(2, '0')}</span>
-        <div class="queue-body">
-          <div class="qt-title">${dot}${esc(title)}</div>
-          ${artist ? `<div class="qt-artist">${esc(artist)}</div>` : ''}
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-function esc(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
-
-// ═══════════════════════════════════════════════════════
-// AUDIO — Playback + progress bar
-// ═══════════════════════════════════════════════════════
-function initAudio() {
-  const audio = $('#audio');
-
-  $('#btn-play').addEventListener('click', () => {
-    if (audio.src && !audio.src.endsWith('null')) {
-      if (audio.paused) audio.play().catch(() => {});
-      else audio.pause();
-    }
-  });
-  // Start disabled — no track loaded
-  $('#btn-play').disabled = true;
-
-  // Skip controls
-  $('#btn-prev').addEventListener('click', () => skipTrack(-1));
-  $('#btn-next').addEventListener('click', () => skipTrack(1));
-
-  // ── Heart / favorite ──
-  let favorites = JSON.parse(localStorage.getItem('claudio_favs') || '[]');
-  const btnFav = $('#btn-fav');
-  const updateFavUI = () => {
-    const title = $('#np-title').textContent;
-    const liked = favorites.some(f => f.title === title);
-    btnFav.classList.toggle('liked', liked);
-  };
-  // ── Favorites side drawer ──
-  const favsDrawer = $('#favs-drawer');
-  const favsPanelList = $('#favs-panel-list');
-  const favsClose = $('#favs-close');
-  const favsBackdrop = document.querySelector('.favs-backdrop');
-
-  function openFavsDrawer() {
-    const favs = JSON.parse(localStorage.getItem('claudio_favs') || '[]');
-    favsPanelList.innerHTML = favs.length
-      ? favs.map((f, i) => `<div class="favs-panel-item" data-fi="${i}">
-          <span class="fp-idx">${String(i + 1).padStart(2, '0')}</span>
-          <div class="fp-info">
-            <div class="fp-title">${esc(f.title)}</div>
-            ${f.artist ? `<div class="fp-artist">${esc(f.artist)}</div>` : ''}
-          </div>
-        </div>`).join('')
-      : '<div style="color:#555;text-align:center;padding:40px 0;font-size:12px">— 暂无红心歌曲 —</div>';
-    // Click to play (by matching in main queue)
-    favsPanelList.querySelectorAll('.favs-panel-item').forEach(el => {
-      el.addEventListener('click', () => {
-        const favs = JSON.parse(localStorage.getItem('claudio_favs') || '[]');
-        const f = favs[parseInt(el.dataset.fi)];
-        // Find in queue
-        const qi = queue.findIndex(t => t.label === f.title || t.name === f.title);
-        if (qi >= 0 && queue[qi]?.url) {
-          currentQueueIdx = qi;
-          renderQueue();
-          updatePlayerInfo(queue[qi].label || queue[qi].name, queue[qi].album || '');
-          playAudio(queue[qi].url);
-        }
-      });
-    });
-    favsDrawer.classList.remove('hidden');
-  }
-
-  favsClose.addEventListener('click', () => favsDrawer.classList.add('hidden'));
-  favsBackdrop.addEventListener('click', () => favsDrawer.classList.add('hidden'));
-
-  btnFav.addEventListener('click', () => {
-    const title = $('#np-title').textContent;
-    const artist = $('#np-artist').textContent;
-    if (!title || title === '—' || title === 'Claudio.fm') return;
-    const idx = favorites.findIndex(f => f.title === title);
-    if (idx >= 0) {
-      favorites.splice(idx, 1);
-    } else {
-      favorites.unshift({ title, artist, time: fmtNow() });
-    }
-    localStorage.setItem('claudio_favs', JSON.stringify(favorites));
-    updateFavUI();
-    renderFavs();
-    openFavsDrawer();
-    // Heart feedback: trigger AI with hidden context
-    if (!isFetchingAI && favorites.some(f => f.title === title)) {
-      const hidden = `[系统：用户刚刚红心收藏了《${title}》${artist ? ' - ' + artist : ''}。请给出一句简短正面反馈（≤20字），然后顺势推荐下一首歌。]`;
-      fetchAI('', hidden);
-    }
-  });
-
-  audio.addEventListener('pause', () => {
-    isPlaying = false;
-    $('#icon-play').style.display = '';
-    $('#icon-pause').style.display = 'none';
-    $('#btn-play').classList.remove('active');
-    if (audio.src && !audio.src.endsWith('null')) {
-      setPlayerState('ready');
-      savePlaybackState();
-    }
-  });
-
-  audio.addEventListener('ended', () => {
-    isPlaying = false;
-    // Auto-next: skip dead tracks, find next playable
-    let nextIdx = currentQueueIdx + 1;
-    while (nextIdx < queue.length && !queue[nextIdx]?.url) nextIdx++;
-    if (nextIdx < queue.length && queue[nextIdx]?.url) {
-      currentQueueIdx = nextIdx;
-      renderQueue();
-      const tr = queue[currentQueueIdx];
-      updatePlayerInfo(tr.label || tr.name, tr.album || tr.artists || '');
-      playAudio(tr.url);
-      checkRefill();
-    } else {
-      $('#icon-play').style.display = '';
-      $('#icon-pause').style.display = 'none';
-      setPlayerState('idle');
-      localStorage.removeItem('claudio_playback');
-    }
-  });
-
-  audio.addEventListener('error', () => {
-    // Silent skip: don't show error, just move to next track
-    console.log('[audio] Track failed, auto-skipping...');
-    $('#progress-fill').style.width = '0%';
-    setPlayerState('idle');
-    if (stuckTimer) clearTimeout(stuckTimer);
-    // Brief DJ message then skip
-    showAI('Signal\'s a bit unstable — switching to the next one for you.', '信号不太稳，帮你换一首。');
-    setTimeout(() => {
-      let next = currentQueueIdx + 1;
-      while (next < queue.length && !queue[next]?.url) next++;
-      if (next < queue.length && queue[next]?.url) {
-        currentQueueIdx = next;
-        renderQueue();
-        const tr = queue[currentQueueIdx];
-        updatePlayerInfo(tr.label || tr.name, tr.album || tr.artists || '');
-        playAudio(tr.url);
-      }
-    }, 1500);
-  });
-
-  // Detect stalled/broken playback
-  audio.addEventListener('stalled', () => {
-    console.warn('[audio] stalled — source may be unreachable');
-  });
-
-  // ── Progress bar seeking ──
-  const progressTrack = $('#progress-track');
-  const progressThumb = $('#progress-thumb');
-  const hoverTime = $('#hover-time');
-  let isDragging = false;
-
-  function getSeekPercent(e) {
-    const rect = progressTrack.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    return Math.max(0, Math.min(100, (x / rect.width) * 100));
-  }
-
-  progressTrack.addEventListener('mousedown', (e) => {
-    isDragging = true;
-    progressTrack.classList.add('dragging');
-    const pct = getSeekPercent(e);
-    if (audio.duration) {
-      audio.currentTime = (pct / 100) * audio.duration;
-    }
-  });
-
-  document.addEventListener('mousemove', (e) => {
-    if (!isDragging) {
-      // Hover tooltip
-      if (audio.duration && progressTrack.matches(':hover')) {
-        const pct = getSeekPercent(e);
-        hoverTime.textContent = fmtTime((pct / 100) * audio.duration);
-        hoverTime.style.left = `${pct}%`;
-        hoverTime.classList.add('visible');
-      } else {
-        hoverTime.classList.remove('visible');
-      }
-      return;
-    }
-    // Dragging
-    const pct = getSeekPercent(e);
-    if (audio.duration) {
-      audio.currentTime = (pct / 100) * audio.duration;
-    }
-  });
-
-  document.addEventListener('mouseup', () => {
-    if (isDragging) {
-      isDragging = false;
-      progressTrack.classList.remove('dragging');
-      savePlaybackState();
-    }
-  });
-
-  let stuckTimer = null;
-  let lastTime = -1;
-  let lastSave = 0;
-  audio.addEventListener('timeupdate', () => {
-    if (audio.duration && isFinite(audio.duration)) {
-      const pct = (audio.currentTime / audio.duration) * 100;
-      if (!isDragging) {
-        $('#progress-fill').style.width = `${pct}%`;
-        $('#progress-thumb').style.left = `${pct}%`;
-      }
-      $('#time-now').textContent = fmtTime(audio.currentTime);
-      $('#time-total').textContent = fmtTime(audio.duration);
-      // Buffered
-      if (audio.buffered.length) {
-        const bufEnd = audio.buffered.end(audio.buffered.length - 1);
-        if (audio.duration) {
-          $('#progress-buffered').style.width = `${(bufEnd / audio.duration) * 100}%`;
-        }
-      }
-    }
-    // Detect stuck
-    if (isPlaying && audio.currentTime === lastTime && audio.currentTime === 0) {
-      // still not progressing
-    } else {
-      lastTime = audio.currentTime;
-      if (stuckTimer) { clearTimeout(stuckTimer); stuckTimer = null; }
-    }
-    // Debounced save every 3 seconds
-    const now = Date.now();
-    if (now - lastSave > 3000) {
-      lastSave = now;
-      if (!isDragging) savePlaybackState();
-    }
-  });
-
-  // If play event fires but no timeupdate within 4 seconds → stuck
-  audio.addEventListener('play', () => {
-    isPlaying = true;
-    $('#icon-play').style.display = 'none';
-    $('#icon-pause').style.display = '';
-    $('#btn-play').classList.add('active');
-    setPlayerState('playing');
-    lastTime = -1;
-    if (stuckTimer) clearTimeout(stuckTimer);
-    stuckTimer = setTimeout(() => {
-      if (isPlaying && audio.currentTime < 0.5 && !audio.duration) {
-        console.warn('[audio] stuck detected — no progress after 4s');
-        audio.pause();
-        showAI(t('audioError'), null);
-        $('#progress-fill').style.width = '0%';
-        setPlayerState('idle');
-      }
-      stuckTimer = null;
-    }, 4000);
-  });
-}
-
-function playAudio(url) {
-  const audio = $('#audio');
-  audio.src = url;
-  setPlayerState('ready');
-  audio.play().catch(err => {
-    console.error('[audio] Play failed:', err);
-  });
-  savePlaybackState();
-  // Add to play history
-  addToHistory($('#np-title').textContent, $('#np-artist').textContent);
-}
-
-// ── Play history ──
-function addToHistory(title, artist) {
-  if (!title || title === '—' || title === 'Claudio.fm') return;
-  // Remove duplicate if already in history
-  playHistory = playHistory.filter(h => h.title !== title);
-  playHistory.unshift({ title, artist, time: fmtNow() });
-  if (playHistory.length > 20) playHistory = playHistory.slice(0, 20);
-  localStorage.setItem('claudio_history', JSON.stringify(playHistory));
-  renderHistory();
-}
-
-function renderFavs() {
-  const container = $('#favs-list');
-  const favs = JSON.parse(localStorage.getItem('claudio_favs') || '[]');
-  if (!favs.length) { container.innerHTML = ''; return; }
-  container.innerHTML = `<div class="favs-head">❤️ FAVORITES (${favs.length})</div>`
-    + favs.slice(0, 10).map((f, i) =>
-      `<div class="favs-item">
-        <span class="fi-del" data-fi="${i}" title="删除">✕</span>
-        <span class="fi-title">${esc(f.title)}${f.artist ? ' — ' + esc(f.artist) : ''}</span>
-      </div>`
-    ).join('');
-  // Delete handlers
-  container.querySelectorAll('.fi-del').forEach(el => {
-    el.addEventListener('click', () => {
-      const idx = parseInt(el.dataset.fi);
-      const favs = JSON.parse(localStorage.getItem('claudio_favs') || '[]');
-      favs.splice(idx, 1);
-      localStorage.setItem('claudio_favs', JSON.stringify(favs));
-      renderFavs();
-      updateFavUI();
-    });
-  });
-}
-
-function renderHistory() {
-  const container = $('#history-list');
-  if (!playHistory.length) {
-    container.innerHTML = '';
-    return;
-  }
-  container.innerHTML = `<div class="history-head">${lang === 'zh' ? '最近播放' : 'RECENT'}</div>`
-    + playHistory.slice(0, 5).map(h =>
-      `<div class="history-item">
-        <span class="hi-time">${h.time}</span>
-        <span class="hi-title" title="${esc(h.title)} — ${esc(h.artist)}">${esc(h.title)}${h.artist ? ' — ' + esc(h.artist) : ''}</span>
-      </div>`
-    ).join('');
-}
-
-// ── Load saved playlist from local archive ──
-async function loadSavedPlaylist() {
-  try {
-    const { ok, count } = await window.claudio.getSavedPlaylist();
-    if (ok && count > 0) {
-      console.log(`[archive] ${count} tracks available (AI will reference them, not queue directly)`);
-    }
-  } catch { /* no saved data */ }
-}
-
-// ── Resume playback on restart ──
-// ── Built-in TTS (Chromium speechSynthesis) ──
-function speakText(text, onEnd) {
-  if (!text || !('speechSynthesis' in window)) {
-    if (onEnd) onEnd();
-    return;
-  }
-  // Cancel any ongoing speech
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'zh-CN';
-  u.rate = 0.95;
-  u.pitch = 1.0;
-  u.volume = 0.9;
-  if (onEnd) u.onend = onEnd;
-  u.onerror = () => { if (onEnd) onEnd(); };
-  speechSynthesis.speak(u);
-}
-
-function savePlaybackState() {
-  const audio = $('#audio');
-  if (!audio.src || audio.src.endsWith('null')) return;
-  const st = {
-    url: audio.src,
-    title: $('#np-title').textContent,
-    artist: $('#np-artist').textContent,
-    position: audio.currentTime || 0,
-    queue: queue,
-    queueIdx: currentQueueIdx,
-  };
-  localStorage.setItem('claudio_playback', JSON.stringify(st));
-}
-
-function loadPlaybackState() {
-  try {
-    const saved = JSON.parse(localStorage.getItem('claudio_playback'));
-    if (!saved?.url) return;
-    // Only restore current track + position, NOT the full queue (could be stale 1000+ items)
-    queue = [{ label: saved.title, name: saved.title, url: saved.url }];
-    currentQueueIdx = 0;
-    renderQueue();
-    updatePlayerInfo(saved.title, saved.artist);
-    const audio = $('#audio');
-    audio.src = saved.url;
-    audio.currentTime = saved.position || 0;
-    setPlayerState('ready');
-    audio.play().catch(() => {});
-  } catch { /* ignore */ }
-}
-// Clear stale playback data from localStorage (old huge queues)
-try {
-  const old = JSON.parse(localStorage.getItem('claudio_playback') || '{}');
-  if (old.queue?.length > 20) {
-    console.log('[cleanup] Removing stale playback data with ' + old.queue.length + ' tracks');
-    localStorage.removeItem('claudio_playback');
-  }
-} catch { /* ignore */ }
-
-function fmtTime(sec) {
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
-// ═══════════════════════════════════════════════════════
-// VOLUME — Thin slider
-// ═══════════════════════════════════════════════════════
 function initVolume() {
-  const slider = $('#volume-slider');
-  const audio = $('#audio');
-  const saved = localStorage.getItem('claudio_volume');
-  slider.value = saved != null ? saved : 80;
-  audio.volume = slider.value / 100;
+  const s=$('#volume-slider'),a=$('#audio');
+  s.value=localStorage.getItem('claudio_volume')||80;a.volume=s.value/100;
+  s.addEventListener('input',()=>{a.volume=s.value/100;localStorage.setItem('claudio_volume',s.value);});
+}
 
-  slider.addEventListener('input', () => {
-    audio.volume = slider.value / 100;
-    localStorage.setItem('claudio_volume', slider.value);
+function initSettings() {
+  $('#btn-settings').addEventListener('click',()=>$('#settings-overlay').classList.remove('hidden'));
+  $('#btn-settings-close').addEventListener('click',()=>$('#settings-overlay').classList.add('hidden'));
+  $('#settings-overlay').addEventListener('click',e=>{if(e.target===$('#settings-overlay'))$('#settings-overlay').classList.add('hidden');});
+  $('#btn-import').addEventListener('click',async()=>{
+    const uid=$('#import-input').value.trim();if(!uid)return;
+    $('#btn-import').disabled=true;$('#btn-import').textContent='Importing...';
+    try{const r=await window.claudio.importNetease(uid,'');$('#import-status').textContent=r.ok?r.totalTracks+' tracks imported':r.error;$('#import-status').className='setting-note '+(r.ok?'success':'error');}catch(e){$('#import-status').textContent=e.message;}
+    $('#btn-import').disabled=false;$('#btn-import').textContent='IMPORT PLAYLISTS';
   });
 }
 
-// ═══════════════════════════════════════════════════════
-// THEME TOGGLE — DARK / LIGHT (invert)
-// ═══════════════════════════════════════════════════════
-function initThemeToggle() {
-  $('#btn-theme').addEventListener('click', () => {
-    dark = !dark;
-    $('#btn-theme').textContent = dark ? t('themeDark') : t('themeLight');
-    document.body.style.filter = dark ? 'none' : 'invert(0.9) hue-rotate(180deg)';
+function initFavs() {
+  // Header fav button → open drawer
+  const hd = $('#btn-favs');
+  if (hd) hd.addEventListener('click',()=>{
+    const d=$('#favs-drawer'),list=$('#favs-panel-list');
+    const favs=JSON.parse(localStorage.getItem('claudio_favs')||'[]');
+    list.innerHTML=favs.length?favs.map((f,i)=>`<div class="favs-panel-item"><span class="fp-idx">${String(i+1).padStart(2,'0')}</span><div class="fp-info"><div class="fp-title">${esc(f.title)}</div>${f.artist?`<div class="fp-artist">${esc(f.artist)}</div>`:''}</div></div>`).join(''):'<div style="color:#555;text-align:center;padding:40px 0">— 暂无红心 —</div>';
+    d.classList.remove('hidden');
   });
-}
-
-// ═══════════════════════════════════════════════════════
-// LANGUAGE TOGGLE — EN ↔ 中文
-// ═══════════════════════════════════════════════════════
-function initLangToggle() {
-  $('#btn-lang').addEventListener('click', () => {
-    lang = lang === 'en' ? 'zh' : 'en';
-    localStorage.setItem('claudio_lang', lang);
-    applyLanguage();
-  });
-}
-
-// ═══════════════════════════════════════════════════════
-// SETTINGS — API key + Model + Netease import
-// ═══════════════════════════════════════════════════════
-
-function parseImportInput(input) {
-  const s = (input || '').trim();
-  if (!s) return null;
-  // Share link: extract playlist ID
-  const m = s.match(/music\.163\.com.*[?&/]id=(\d+)/);
-  if (m) return { type: 'playlist', id: m[1] };
-  // Share link: short format "123456789"
-  if (/^\d+$/.test(s)) return { type: 'uid', id: s };
-  // Might be a UID (numbers only) but check length
-  if (/^\d{5,}$/.test(s)) return { type: 'uid', id: s };
-  return { type: 'invalid' };
-}
-
-async function initSettings() {
-  const gearBtn = $('#btn-settings');
-  const overlay = $('#settings-overlay');
-  const closeBtn = $('#btn-settings-close');
-  const modelSelect = $('#model-select');
-  const btnImport = $('#btn-import');
-  const importStatus = $('#import-status');
-  const importInput = $('#import-input');
-  const apiKeyInput = $('#api-key-input');
-  const apiKeyNote = $('#api-key-note');
-  const btnSaveKey = $('#btn-save-key');
-  const volcAppidInput = $('#volc-appid-input');
-  const volcTokenInput = $('#volc-token-input');
-  const btnSaveVolc = $('#btn-save-volc');
-  const volcNote = $('#volc-note');
-
-  gearBtn.addEventListener('click', async () => {
-    overlay.classList.remove('hidden');
-    importInput.placeholder = t('importPlaceholder');
-    checkApiStatus();
-    // Show saved UID
-    try {
-      const { uid } = await window.claudio.getSavedUid();
-      if (uid && !importInput.value) importInput.value = uid;
-    } catch { /* ignore */ }
-    // Load API key
-    try {
-      const { key } = await window.claudio.getApiKey();
-      apiKeyInput.value = key || '';
-      apiKeyNote.textContent = key ? t('keySaved') : '';
-      apiKeyNote.className = 'setting-note';
-    } catch { /* ignore */ }
-    // Load Volcengine settings
-    try {
-      const volc = await window.claudio.getVolc();
-      if (volc.appid) volcAppidInput.value = volc.appid;
-      if (volc.token) volcTokenInput.value = volc.token;
-      volcNote.textContent = volc.token ? '•••••••• (已配置)' : '';
-      volcNote.className = 'setting-note';
-    } catch { /* ignore */ }
-    // Load model settings
-    try {
-      const settings = await window.claudio.getSettings();
-      modelSelect.innerHTML = '';
-      settings.models.forEach(m => {
-        const opt = document.createElement('option');
-        opt.value = m.id;
-        opt.textContent = m.label;
-        if (m.id === settings.model) opt.selected = true;
-        modelSelect.appendChild(opt);
-      });
-      $('#model-note').textContent = `${t('modelCurrent')} ${settings.model}`;
-    } catch { /* ignore */ }
-  });
-
-  closeBtn.addEventListener('click', () => overlay.classList.add('hidden'));
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.classList.add('hidden');
-  });
-
-  // ── API Key ──
-  btnSaveKey.addEventListener('click', async () => {
-    const key = apiKeyInput.value.trim();
-    if (!key) {
-      apiKeyNote.textContent = t('keyInvalid');
-      apiKeyNote.className = 'setting-note error';
-      return;
-    }
-    btnSaveKey.disabled = true;
-    btnSaveKey.textContent = t('savingKey');
-    try {
-      await window.claudio.setApiKey(key);
-      apiKeyNote.textContent = t('keySaved');
-      apiKeyNote.className = 'setting-note success';
-    } catch (err) {
-      apiKeyNote.textContent = err.message;
-      apiKeyNote.className = 'setting-note error';
-    } finally {
-      btnSaveKey.disabled = false;
-      btnSaveKey.textContent = t('saveKey');
-    }
-  });
-
-  // ── Volcengine TTS ──
-  btnSaveVolc.addEventListener('click', async () => {
-    const appid = volcAppidInput.value.trim();
-    const token = volcTokenInput.value.trim();
-    if (!appid || !token) {
-      volcNote.textContent = 'AppID 和 Token 都需要填写';
-      volcNote.className = 'setting-note error';
-      return;
-    }
-    btnSaveVolc.disabled = true;
-    btnSaveVolc.textContent = 'SAVING...';
-    try {
-      await window.claudio.setVolc(appid, token);
-      volcNote.textContent = '•••••••• (已保存)';
-      volcNote.className = 'setting-note success';
-    } catch (err) {
-      volcNote.textContent = err.message;
-      volcNote.className = 'setting-note error';
-    } finally {
-      btnSaveVolc.disabled = false;
-      btnSaveVolc.textContent = 'SAVE TTS';
-    }
-  });
-
-  modelSelect.addEventListener('change', async () => {
-    const model = modelSelect.value;
-    try {
-      await window.claudio.setModel(model);
-      $('#model-note').textContent = `${t('modelSwitched')} ${model}`;
-    } catch {
-      $('#model-note').textContent = t('modelSwitchFail');
-    }
-  });
-
-  // ── API status ──
-  const apiDot = $('#api-dot');
-  const apiStatusText = $('#api-status-text');
-
-  async function checkApiStatus() {
-    try {
-      const [api, prox] = await Promise.all([
-        window.claudio.pingApi().catch(() => ({ ok: false })),
-        window.claudio.pingProxy().catch(() => ({ ok: false })),
-      ]);
-      apiDot.className = api.ok ? 'api-dot online' : 'api-dot offline';
-      apiStatusText.textContent = `API: ${api.ok ? 'ON' : 'OFF'} | Proxy: ${prox.ok ? 'ON' : 'OFF'}`;
-    } catch {
-      apiDot.className = 'api-dot offline';
-      apiStatusText.textContent = 'API: OFF | Proxy: OFF';
-    }
-  }
-
-  // ── Queue hint → open settings ──
-  $('#queue-list').addEventListener('click', (e) => {
-    if (e.target.classList.contains('queue-hint')) {
-      overlay.classList.remove('hidden');
-      importInput.placeholder = t('importPlaceholder');
-    }
-  });
-
-  // ── Netease import ──
-  btnImport.addEventListener('click', async () => {
-    const raw = importInput.value.trim();
-    const parsed = parseImportInput(raw);
-
-    if (!parsed || parsed.type === 'invalid') {
-      importStatus.className = 'setting-note error';
-      importStatus.textContent = t('importInvalid');
-      return;
-    }
-
-    btnImport.disabled = true;
-    btnImport.textContent = t('importing');
-    importStatus.className = 'setting-note';
-    importStatus.textContent = t('connecting');
-
-    try {
-      let result;
-      if (parsed.type === 'playlist') {
-        result = await window.claudio.importPlaylist(parsed.id);
-      } else {
-        result = await window.claudio.importNetease(parsed.id, '');
-      }
-      if (!result.ok) throw new Error(result.error);
-      importStatus.className = 'setting-note success';
-      importStatus.textContent = t('importDone', result.totalTracks, result.playlistCount || 1);
-    } catch (err) {
-      importStatus.className = 'setting-note error';
-      importStatus.textContent = err.message;
-    } finally {
-      btnImport.disabled = false;
-      btnImport.textContent = t('importBtn');
-    }
-  });
-
-  // Progress updates from backend
-  if (window.claudio.onImportProgress) {
-    window.claudio.onImportProgress((data) => {
-      if (data.phase === 'tracks') {
-        importStatus.textContent = `[${data.current}/${data.total}] ${data.message}`;
-      } else {
-        importStatus.textContent = data.message;
-      }
-    });
-  }
-}
-
-// ═══════════════════════════════════════════════════════
-// SCHEDULER — Auto broadcasts from backend cron
-// ═══════════════════════════════════════════════════════
-function initSchedulerListener() {
-  if (!window.claudio.onBroadcast) return;
-  window.claudio.onBroadcast((data) => {
-    handleDJResponse(data);
+  $('#favs-close').addEventListener('click',()=>$('#favs-drawer').classList.add('hidden'));
+  // Player heart button → toggle like
+  const hb = $('#btn-fav');
+  if (hb) hb.addEventListener('click',()=>{
+    const title=$('#np-title').textContent,artist=$('#np-artist').textContent;
+    if(!title||title==='—')return;
+    const favs=JSON.parse(localStorage.getItem('claudio_favs')||'[]');
+    const idx=favs.findIndex(f=>f.title===title);
+    if(idx>=0)favs.splice(idx,1);else favs.unshift({title,artist,time:fmtNow()});
+    localStorage.setItem('claudio_favs',JSON.stringify(favs));
+    hb.classList.toggle('liked',idx<0);
   });
 }
