@@ -362,7 +362,7 @@ function initLogoTap() {
       _logoTaps = 0; clearTimeout(_logoTimer);
       chatMessages.push({ role:'assistant', say:'Created by Galton欣城', time:fmtNow(), hasTracks:false, isDev:true });
       renderChat();
-      const anthem = new Audio('Crt/TEMPOREX - Daydream.mp3');
+      const anthem = new Audio('../Crt/TEMPOREX - Daydream.mp3');
       const a = document.getElementById('audio');
       if (a && a.src) fadeVol(a, a.volume, 0.15, () => anthem.play());
       else anthem.play();

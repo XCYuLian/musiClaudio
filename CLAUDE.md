@@ -1,73 +1,86 @@
-# Claudio 项目规则与避坑指南 (V2)
+# Claudio v1.0 — 开发者规则与避坑指南
 
 ## 技术栈
 - **Runtime**: Node.js ≥ 18, Electron + CommonJS
 - **数据库**: sql.js (SQLite WASM, `data/state.db`)
-- **AI**: DeepSeek API (`deepseek-chat` 模型，别用 deepseek-v4-flash)
-- **TTS**: Volcengine ICL (声音复刻, `S_xSgIXKL12`)
+- **AI**: DeepSeek API (`deepseek-chat`, **禁用 deepseek-v4-flash**)
+- **TTS**: Volcengine ICL 声音复刻 (`S_xSgIXKL12`, 火山引擎 SSE)
 - **音乐**: NeteaseCloudMusicApi npm 模块直连
-- **代理**: @unblockneteasemusic/server (端口 8081, VIP 解锁, 只传 `-p PORT -e URL` 两个参数)
+- **代理**: @unblockneteasemusic/server (端口 8081, 参数 `-p PORT -e URL`, **禁止加 -a -o**)
 
-## ⚠️ 致命禁忌
+## 文件架构
 
-### JSON 格式——唯一正确格式
+| 文件 | 行数 | 职责 |
+|------|------|------|
+| `lib/claude.js` | ~250 | DeepSeek API + JSON 强校验 |
+| `lib/context.js` | ~180 | System Prompt 组装 |
+| `lib/router.js` | ~110 | 意图分流 + TTS + 音源解析 |
+| `lib/scheduler.js` | ~80 | cron 定时 + auto-start |
+| `lib/ncm.js` | ~280 | 网易云搜索 + 歌手校验 + VIP 过滤 |
+| `lib/tts.js` | ~90 | 火山 ICL TTS → base64 |
+| `lib/proxy.js` | ~100 | VIP 代理解锁 |
+| `public/player.js` | ~380 | 前端全部逻辑 |
+
+## ⚠️ 铁律——每次改代码前必读
+
+### JSON 格式
 ```json
-{"system_log":"状态", "dj_speech":"DJ说话", "action_type":"chat_only|change_song", "search_query":"歌手 歌名"}
+{"system_log":"状态日志", "dj_speech":"DJ说话", "action_type":"chat_only|change_song", "search_query":"歌手 歌名"}
 ```
-- ❌ 不要用 `speech`，新格式是 `dj_speech`
-- ❌ 不要用 `reply`/`monologue`/`say`/`play[]`/`reason`/`segue`
-- ❌ 后端用 `result.dj_speech`，不是 `result.speech`
-- ❌ `isLikelyDJResponse` 必须检查 `dj_speech` 字段
+- 这是唯一格式。`claude.js` 的 `isLikelyDJResponse` 和 `validateResponse` 都以此为准
+- 后端用 `result.dj_speech`，**不是** `result.speech`
+- 旧字段 `say/play/reply/monologue/reason/segue` 已被禁用，仅保留向后兼容 fallback
+
+### 前端路由
+- `data.dj_speech` / `data.system_log` / `data.action_type` / `data.tracks`
+- `chat_only` → 只说话，**不动音乐**
+- `change_song` → 搜歌 + 切歌
+- `document.getElementById('ai-chat')` 替代 `$('#ai-chat')`
 
 ### 状态锁
-- ✅ 全局只用 `_busy` 一个布尔锁
-- ❌ 不要引入 `_aiLocked` / `isFetchingAI` / 状态机枚举
+- 全局只用 `_busy` 一个布尔锁
+- `playAudio()` 首行 `_busy = false`
 
-### 前端不要引用
-- ❌ `data.play` / `data.reply` / `data.monologue`
-- ✅ `data.dj_speech` / `data.system_log` / `data.action_type` / `data.search_query` / `data.tracks`
-- ✅ `document.getElementById('ai-chat')` 不用 `$('#ai-chat')`
+### 必须保留的功能（重写时不可删）
+1. `initSeek()` — 进度条拖拽
+2. `initFavs()` — 爱心收藏 + 侧边栏
+3. `initLogoTap()` — 7 连点彩蛋
+4. `checkEasterEgg()` — 聊天指令彩蛋
+5. `fadeVol()` — DJ 说话时音乐渐弱
 
-### 播放后必须释放锁
-`playAudio()` 第一行 `_busy = false`
+### 代理参数
+```javascript
+['-p', String(PROXY_PORT), '-e', 'https://music.163.com']
+```
+禁止加 `-a` 或 `-o`
 
-### 代理启动参数
-只用 `-p PORT -e https://music.163.com`，不要加 `-a` 或 `-o`
-
-### fadeVol 最低值
-`Math.max(0.15, cur)` — 至少 15%，DJ 说话时音乐做背景
-
-## 历史 Bug 库
+## Bug 全记录
 
 | # | 现象 | 根因 | 修复 |
 |---|------|------|------|
-| 1 | AI 反复推同一艺人 | state.addPlay 没被调用 | 每次推荐后写入 state.db |
-| 2 | 切歌按钮不生效 | `_busy` 锁没释放 | `playAudio()` 里 `_busy = false` |
-| 3 | 进度条不能拖 | 重写时漏了 initSeek | 必须有 `initSeek()` |
-| 4 | AI 输出不显示 | showChat 没调或容器 ID 错 | 每个分支调 showChat |
-| 5 | TTS 时音乐消失 | fadeVol 最低 2% | 改最低 15% |
-| 6 | 设置面板截断 | 没 max-height | 加 `max-height: 90vh; overflow-y: auto` |
-| 7 | 代理崩溃 | `-a` `-o` 参数 | 只用 `-p PORT -e URL` |
-| 8 | 端口占用 | 旧进程没关 | 关所有窗口再启 |
-| 9 | API 连不上 | key 过期/模型名错 | 用 `deepseek-chat` |
-| 10 | 打包超时 | cp node_modules 慢 | robocopy, 超时 600s, D 盘 |
-| 11 | Cannot read 'length' | `result.play.length` | 新格式没有 play |
-| 12 | 播放卡死 | 无 URL 时不触发 refill | `setTimeout(refill, 500)` |
-| 13 | DeepSeek 返回空 | `deepseek-v4-flash` 不存在 | 用 `deepseek-chat` |
-| 14 | 聊天框不显示 | `$('#ai-chat')` 返回 null | `document.getElementById` |
-| 15 | 用户消息不显示 | showChat 只处理 assistant | renderChat 区分 m.role |
-| 16 | 切歌 refill 不响应 | `_aiLocked` 不存在 | 统一用 `_busy` |
-| 17 | Bonobo 反复出现 | filter 只看最近 20 条 | 扩大到 50 条 + 永久黑名单 |
-| 18 | 国语歌全被跳 | 热门歌手全是翻唱 | 拒了就换下一首 |
-| 19 | 聊天框不显示(v2) | `$` 选择器失败 | `document.getElementById` |
-| 20 | 代理 EADDRINUSE | 旧进程不释放端口 | 关窗口再启 |
-| 21 | 大量无音源 | 歌手匹配太激进 | 放宽：用最高分候选 |
-| 22 | JSON 解析失败(v2) | `isLikelyDJResponse` 不认识 `dj_speech` | 加 `dj_speech` 检查 |
-| 23 | AI 输出空 | 后端用 `result.speech` 实际是 `result.dj_speech` | 全替换 |
+| 1 | AI 反复推同一艺人 | state.addPlay 没被调用 | 每次推荐后写入 |
+| 2 | 切歌按钮失效 | _busy 锁没释放 | playAudio 里 `_busy=false` |
+| 3 | 进度条拖不动 | 重写漏了 initSeek | 必须包含 initSeek |
+| 4 | 聊天框不显示 | `$('#ai-chat')` 返回 null | `document.getElementById` |
+| 5 | DJ 说话音乐消失 | fadeVol 最低 2% | 改最低 15% |
+| 6 | 设置面板截断 | 没 max-height | `max-height:90vh;overflow-y:auto` |
+| 7 | 代理崩溃 | `-a` `-o` 参数 | 只传 `-p -e` |
+| 8 | 端口占用 | 旧进程没关 | 启动前强杀 |
+| 9 | API 连不上 | 模型名错误 | 用 `deepseek-chat` |
+| 10 | Cannot read 'length' | `result.play.length` | 新格式无 play |
+| 11 | 播放卡死 | 无 URL 不触发 refill | `setTimeout(refill,500)` |
+| 12 | DeepSeek 返回空 | `deepseek-v4-flash` 不存在 | 用 `deepseek-chat` |
+| 13 | Bonobo 反复出现 | filter 只看 20 条 | 扩大到 50 + 永久黑名单 |
+| 14 | 国语歌全被跳 | 热门歌手全是翻唱 | 拒了就换下一首 |
+| 15 | JSON 解析失败 | isLikelyDJResponse 不认识 dj_speech | 加 dj_speech 检查 |
+| 16 | AI 输出空 | 后端用 result.speech 实际是 dj_speech | 全替换 |
+| 17 | 闲聊也切歌 | DJ 人格覆盖了 intent | 重写 persona 为 TWO MODES |
+| 18 | 台歌不播放 | 路径从 public/ 出发错误 | 用 `../Crt/` |
+| 19 | 代理 EADDRINUSE | 旧进程死赖端口 | 启动前 taskkill |
 
 ## 快速测试
 ```bash
-# API 连通性
+# API
 node -e "fetch('https://api.deepseek.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer sk-08fbfccc9bbd47d5822a345706e1b418'},body:JSON.stringify({model:'deepseek-chat',messages:[{role:'user',content:'hi'}],max_tokens:10})}).then(r=>r.json()).then(console.log)"
 
 # TTS

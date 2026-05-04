@@ -1,48 +1,33 @@
-# Claudio.fm — Personal AI Radio DJ
+# Claudio.fm v1.0 — Personal AI Radio DJ
 
-你的私人 AI 电台 DJ。了解你的品味、感知时间与天气、自动推荐并播放音乐。
+你的私人 AI 电台 DJ。了解你的品味、感知时间与天气、用你的声音说话、自动推荐并播放音乐。
 
----
-
-## 快速获取你的网易云 UID
-
-> 只有获取正确的 UID，Claudio 才能读懂你的灵魂。
-
-### 方法一：手机 App（推荐）
-
-1. 打开**手机网易云音乐 App**，确保已登录。
-2. 点击底部 **"我的"** → 点击自己的**头像**。
-3. 进入个人主页后，点击右上角 **"..."** → **"分享"** → **"复制链接"**。
-4. 你会获得类似下方的链接：
-
-```
-https://y.music.163.com/m/user?id=2034554276
-```
-
-5. 链接末尾 `id=` 后面的那串数字（如 `2034554276`）就是你的专属 **UID**。
-
-### 方法二：网页版
-
-1. 打开 [music.163.com](https://music.163.com) 并登录。
-2. 点击右上角头像进入个人主页。
-3. 浏览器地址栏中的 URL 格式为 `https://music.163.com/#/user/home?id=XXXXXXX`。
-4. `id=` 后面的数字就是你的 UID。
-
----
-
-## 启动 Claudio
+## 快速开始
 
 ```bash
-# 开发模式
-npm start
-
-# 打包 EXE
-npm run build
+npm install
+npm start        # 开发模式
+npm run build    # 打包 EXE → release/Claudio/Claudio.exe
 ```
 
-首次启动会显示登录界面——输入你的网易云 UID 即可自动导入歌单并生成品味画像。
+首次启动即开即用——内置默认 API Key，无需任何配置。
 
----
+## 怎么获取网易云 UID
+
+1. 手机网易云 → 我的 → 头像 → 分享 → 复制链接
+2. 链接末尾 `id=` 后的数字就是你的 UID
+3. 在设置 → NETEASE IMPORT 中填入，一键导入歌单
+
+## 功能
+
+- 🎙️ **AI 电台 DJ**：DeepSeek 驱动，单曲流式推荐，DJ 说话 + 音乐交替
+- 🗣️ **声音复刻**：火山引擎 ICL 自定义男声 TTS，DJ 真的在说话
+- 🔍 **70% 探索模式**：90% 新歌发现 + 10% 歌单怀旧
+- 🚫 **翻唱拦截**：歌手强校验 + 黑名单关键词 + VIP 试听过滤
+- 🔓 **VIP 解锁**：UnblockNeteaseMusic 代理（端口 8081）
+- ❤️ **红心收藏**：侧边栏 Drawer，毛玻璃效果
+- 📊 **品味 DNA**：自动分析歌单生成音乐画像
+- 🎮 **彩蛋**：聊天框输入"你是谁做的"或连点 Logo 7 次
 
 ## 项目结构
 
@@ -50,56 +35,46 @@ npm run build
 ├── electron-main.js      # Electron 主进程
 ├── electron-preload.js   # IPC 桥接
 ├── lib/
-│   ├── claude.js         # DeepSeek API 调用
-│   ├── context.js        # Prompt 组装（DNA/时间/天气/记忆注入）
-│   ├── router.js         # 意图分类 + 指令分流
-│   ├── scheduler.js      # 定时播报 + 自动启动
-│   ├── ncm.js            # 网易云 API（模块直连 + 网页 fallback）
-│   ├── import-netease.js # 歌单导入（分页抓取，1500首上限）
-│   ├── profiler.js       # Soul DNA 品味画像生成
-│   ├── proxy.js          # UnblockNeteaseMusic VIP 代理
-│   ├── tts.js            # Fish Audio TTS 合成
-│   ├── weather.js        # IP 定位 + Open-Meteo 天气
+│   ├── claude.js         # DeepSeek API + JSON 强校验
+│   ├── context.js        # System Prompt 组装
+│   ├── router.js         # 意图分流 (chat/music)
+│   ├── scheduler.js      # 定时 + 自启
+│   ├── ncm.js            # 网易云 API（歌手强校验）
+│   ├── tts.js            # 火山 ICL TTS
+│   ├── proxy.js          # VIP 代理解锁
+│   ├── import-netease.js # 歌单导入
+│   ├── profiler.js       # 品味 DNA 生成
+│   ├── weather.js        # IP 定位 + Open-Meteo
 │   ├── state.js          # SQLite 持久化
-│   └── paths.js          # 统一路径管理
+│   └── paths.js          # 统一路径
 ├── prompts/
-│   └── dj-persona.md     # DJ 人格系统提示词
+│   └── dj-persona.md     # DJ 人格
 ├── public/
-│   ├── player.html       # 前端 UI
+│   ├── player.html       # UI
 │   ├── player.css        # 赛博朋克样式
 │   └── player.js         # 前端逻辑
 ├── data/                 # 运行时数据
 │   ├── state.db          # 播放记录/偏好
 │   ├── playlists/        # 导入的歌单
-│   └── internal_taste_dna.md  # 品味画像
-└── user/                 # 用户语料（可选）
-    ├── taste.md
-    ├── routines.md
-    └── mood-rules.md
+│   └── internal_taste_dna.md
+├── Crt/                  # 图标 + 台歌
+└── CLAUDE.md             # 开发者规则与避坑指南
 ```
-
----
 
 ## 环境变量 (.env)
 
 ```env
-DEEPSEEK_API_KEY=sk-xxx      # DeepSeek API 密钥
-DEEPSEEK_MODEL=deepseek-chat # 模型名称
-NETEASE_COOKIE=xxx           # 网易云 MUSIC_U cookie（可选，提升导入成功率）
-FISH_AUDIO_API_KEY=xxx       # TTS 密钥（可选）
-LAT=39.9                     # 默认纬度
-LON=116.4                    # 默认经度
+DEEPSEEK_API_KEY=sk-xxx           # DeepSeek API 密钥
+DEEPSEEK_MODEL=deepseek-chat      # 模型名称
+VOLC_APPID=2901907354             # 火山引擎 AppID
+VOLC_TOKEN=xxx                    # 火山引擎 Access Token
+VOLC_SPEAKER=S_xSgIXKL12         # 自定义音色 ID
 ```
-
----
 
 ## 技术栈
 
-- **Runtime**: Electron + Node.js ≥ 18
-- **AI**: DeepSeek API (OpenAI-compatible)
-- **音乐**: NeteaseCloudMusicApi (模块直连)
-- **代理**: @unblockneteasemusic/server (VIP 解锁)
-- **数据库**: sql.js (SQLite WASM)
-- **定时**: node-cron
-- **TTS**: Fish Audio
-- **天气**: Open-Meteo + ipapi.co
+Electron + Node.js / DeepSeek API / Volcengine ICL TTS / NeteaseCloudMusicApi / sql.js / node-cron / Open-Meteo
+
+---
+
+**Created by Galton欣城, 2026**
