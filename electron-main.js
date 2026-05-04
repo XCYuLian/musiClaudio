@@ -31,6 +31,7 @@ function createWindow() {
       preload: path.join(__dirname, 'electron-preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      autoplayPolicy: 'no-user-gesture-required',
     },
   });
 
@@ -92,6 +93,17 @@ function createWindow() {
     } catch (e) {
       console.error('[settings] Failed to write .env:', e.message);
     }
+    return { ok: true };
+  });
+
+  // Volcengine TTS settings
+  ipcMain.handle('settings:getVolc', async () => ({
+    appid: state.getPref('volc_appid') || process.env.VOLC_APPID || '',
+    token: state.getPref('volc_token') || process.env.VOLC_TOKEN || '',
+  }));
+  ipcMain.handle('settings:setVolc', async (_event, { appid, token }) => {
+    state.setPref('volc_appid', appid);
+    state.setPref('volc_token', token);
     return { ok: true };
   });
 

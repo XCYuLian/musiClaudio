@@ -12,3 +12,4 @@ dist/
 out/
 Claudio-Portable/
 *.asar
+.build-temp/

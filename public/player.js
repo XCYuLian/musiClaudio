@@ -358,20 +358,25 @@ function handleDJResponse(data) {
 
   // Player — TTS speech → then music
   const ttsText = data.say || data.monologue || data.reply || '';
+  const ttsFile = data.tts; // Volcengine file path, if available
   if (!shouldAppend && hasTracks) {
     const tr = data.tracks[0];
     updatePlayerInfo(tr.label || tr.name, tr.album || '');
     if (tr.url) {
-      if (ttsText && 'speechSynthesis' in window) {
-        // Built-in TTS DJ speech → then music
-        speakText(ttsText, () => {
-          setTimeout(() => playAudio(tr.url), 400);
-        });
-        // Fallback: if TTS doesn't trigger callback within 15s, play anyway
-        setTimeout(() => {
-          const audio = $('#audio');
-          if (!audio.src || audio.paused) playAudio(tr.url);
-        }, 15000);
+      const playMusic = () => setTimeout(() => playAudio(tr.url), 400);
+
+      if (ttsFile) {
+        // Volcengine TTS MP3 → then music
+        const ttsAudio = new Audio('file:///' + ttsFile.replace(/\\/g, '/'));
+        ttsAudio.volume = $('#audio').volume;
+        ttsAudio.onended = playMusic;
+        ttsAudio.onerror = () => playMusic();
+        ttsAudio.play().catch(() => playMusic());
+        setTimeout(() => { if (!ttsAudio.ended) playMusic(); }, 15000);
+      } else if (ttsText && 'speechSynthesis' in window) {
+        // Chromium built-in TTS → then music
+        speakText(ttsText, playMusic);
+        setTimeout(() => { const a = $('#audio'); if (!a.src || a.paused) playMusic(); }, 15000);
       } else {
         playAudio(tr.url);
       }
@@ -980,6 +985,10 @@ async function initSettings() {
   const apiKeyInput = $('#api-key-input');
   const apiKeyNote = $('#api-key-note');
   const btnSaveKey = $('#btn-save-key');
+  const volcAppidInput = $('#volc-appid-input');
+  const volcTokenInput = $('#volc-token-input');
+  const btnSaveVolc = $('#btn-save-volc');
+  const volcNote = $('#volc-note');
 
   gearBtn.addEventListener('click', async () => {
     overlay.classList.remove('hidden');
@@ -996,6 +1005,14 @@ async function initSettings() {
       apiKeyInput.value = key || '';
       apiKeyNote.textContent = key ? t('keySaved') : '';
       apiKeyNote.className = 'setting-note';
+    } catch { /* ignore */ }
+    // Load Volcengine settings
+    try {
+      const volc = await window.claudio.getVolc();
+      if (volc.appid) volcAppidInput.value = volc.appid;
+      if (volc.token) volcTokenInput.value = volc.token;
+      volcNote.textContent = volc.token ? '•••••••• (已配置)' : '';
+      volcNote.className = 'setting-note';
     } catch { /* ignore */ }
     // Load model settings
     try {
@@ -1037,6 +1054,30 @@ async function initSettings() {
     } finally {
       btnSaveKey.disabled = false;
       btnSaveKey.textContent = t('saveKey');
+    }
+  });
+
+  // ── Volcengine TTS ──
+  btnSaveVolc.addEventListener('click', async () => {
+    const appid = volcAppidInput.value.trim();
+    const token = volcTokenInput.value.trim();
+    if (!appid || !token) {
+      volcNote.textContent = 'AppID 和 Token 都需要填写';
+      volcNote.className = 'setting-note error';
+      return;
+    }
+    btnSaveVolc.disabled = true;
+    btnSaveVolc.textContent = 'SAVING...';
+    try {
+      await window.claudio.setVolc(appid, token);
+      volcNote.textContent = '•••••••• (已保存)';
+      volcNote.className = 'setting-note success';
+    } catch (err) {
+      volcNote.textContent = err.message;
+      volcNote.className = 'setting-note error';
+    } finally {
+      btnSaveVolc.disabled = false;
+      btnSaveVolc.textContent = 'SAVE TTS';
     }
   });
 

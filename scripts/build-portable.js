@@ -43,7 +43,13 @@ const APP_DIRS = [
 // ── Utils ──
 function sh(cmd, opts = {}) {
   console.log(`  > ${cmd}`);
-  return execSync(cmd, { stdio: 'inherit', ...opts });
+  try {
+    return execSync(cmd, { stdio: 'inherit', ...opts });
+  } catch (e) {
+    // robocopy returns 1-7 for success
+    if (cmd.startsWith('robocopy') && e.status >= 1 && e.status <= 7) return;
+    throw e;
+  }
 }
 
 function ensureDir(dir) {
@@ -105,7 +111,7 @@ function ensureDir(dir) {
     const src = path.resolve(__dirname, '..', dir);
     const dst = path.join(appDir, dir);
     if (fs.existsSync(src)) {
-      sh(`cp -r "${src}" "${dst}"`, { timeout: 300000 });
+      sh(`robocopy "${src}" "${dst}" /E /NFL /NDL /NJH /NJS /NC /NS /NP`, { timeout: 600000 });
     }
   }
 
@@ -124,7 +130,7 @@ function ensureDir(dir) {
   }
 
   // Copy temp to final
-  sh(`cp -r "${TMP_DIR}" "${finalDir}"`, { timeout: 60000 });
+  sh(`robocopy "${TMP_DIR}" "${finalDir}" /E /NFL /NDL /NJH /NJS /NC /NS /NP`, { timeout: 600000 });
 
   // Clean up temp
   try { fs.rmSync(TMP_DIR, { recursive: true, force: true }); } catch {}
@@ -140,7 +146,7 @@ function ensureDir(dir) {
     console.log(`[build] Creating ${zipOut} ...`);
     try {
       // Use Node.js built-in zlib for zip, or fall back to external
-      sh(`powershell -Command "Compress-Archive -Path '${OUT_DIR}' -DestinationPath '${zipOut}' -Force"`, { timeout: 300000 });
+      sh(`powershell -Command "Compress-Archive -Path '${OUT_DIR}' -DestinationPath '${zipOut}' -Force"`, { timeout: 600000 });
       console.log(`[build] Zip: ${zipOut}`);
     } catch (err) {
       console.log(`[build] Zip failed (try manual): ${err.message}`);

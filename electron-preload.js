@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('claudio', {
   setModel: (model) => ipcRenderer.invoke('settings:setModel', model),
   getApiKey: () => ipcRenderer.invoke('settings:getApiKey'),
   setApiKey: (key) => ipcRenderer.invoke('settings:setApiKey', key),
+  getVolc: () => ipcRenderer.invoke('settings:getVolc'),
+  setVolc: (appid, token) => ipcRenderer.invoke('settings:setVolc', { appid, token }),
 
   // Netease import
   importNetease: (uid, cookie) => ipcRenderer.invoke('netease:import', { uid, cookie }),
