@@ -25,7 +25,9 @@ function createWindow() {
     minHeight: 680,
     frame: false,
     transparent: false,
-    icon: path.join(__dirname, 'Crt', 'App icon.png'),
+    icon: app.isPackaged
+      ? path.join(path.dirname(app.getPath('exe')), 'resources', 'Crt', 'App icon.png')
+      : path.join(__dirname, 'Crt', 'App icon.png'),
     backgroundColor: '#0a0a0a',
     resizable: true,
     webPreferences: {

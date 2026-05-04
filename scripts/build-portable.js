@@ -26,17 +26,16 @@ const ZIP_URL = `https://github.com/electron/electron/releases/download/v${ELECT
 const APP_FILES = [
   'electron-main.js',
   'electron-preload.js',
-  'server.js',
-  'cli.js',
   'package.json',
+  '.env',
 ];
 
 const APP_DIRS = [
   'lib',
   'prompts',
-  'user',
   'public',
   'data',
+  'Crt',
   'node_modules',
 ];
 
