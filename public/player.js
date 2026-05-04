@@ -119,6 +119,7 @@ function applyLanguage() {
   renderQueue();
   renderChat();
   renderHistory();
+  renderFavs();
   updateClock();
 }
 
@@ -343,9 +344,10 @@ function handleDJResponse(data) {
 
   // Queue logic: replace if music intent, append if question/chat
   const isQuestion = !!reply;
+  const isAuto = data.type === 'scheduled' || data.type === 'system' || data.trigger === 'startup';
+  const shouldAppend = (isQuestion || isAuto) && queue.length > 0;
   if (hasTracks) {
-    if (isQuestion) {
-      // Append to queue, don't interrupt current playback
+    if (shouldAppend) {
       queue = [...queue, ...data.tracks];
     } else {
       queue = data.tracks;
@@ -353,7 +355,7 @@ function handleDJResponse(data) {
     }
     renderQueue();
   } else if (hasPlay) {
-    if (isQuestion) {
+    if (shouldAppend) {
       queue = [...queue, ...data.play.map(name => ({ label: name, name }))];
     } else {
       queue = data.play.map(name => ({ label: name, name }));
@@ -362,8 +364,8 @@ function handleDJResponse(data) {
     renderQueue();
   }
 
-  // Player — only start playing if NOT a question (don't interrupt)
-  if (!isQuestion && hasTracks) {
+  // Player — only auto-play if user explicitly requested music
+  if (!shouldAppend && hasTracks) {
     const tr = data.tracks[0];
     updatePlayerInfo(tr.label || tr.name, tr.album || '');
     if (tr.url) {
@@ -371,7 +373,7 @@ function handleDJResponse(data) {
     } else {
       setPlayerState('idle');
     }
-  } else if (!isQuestion && hasPlay) {
+  } else if (!shouldAppend && hasPlay) {
     updatePlayerInfo(data.play[0], t('unavailable'));
     setPlayerState('idle');
   }
@@ -544,6 +546,7 @@ function initAudio() {
     }
     localStorage.setItem('claudio_favs', JSON.stringify(favorites));
     updateFavUI();
+    renderFavs();
   });
 
   audio.addEventListener('pause', () => {
@@ -559,10 +562,20 @@ function initAudio() {
 
   audio.addEventListener('ended', () => {
     isPlaying = false;
-    $('#icon-play').style.display = '';
-    $('#icon-pause').style.display = 'none';
-    setPlayerState('idle');
-    localStorage.removeItem('claudio_playback');
+    // Auto-next: play next track in queue if available
+    const nextIdx = currentQueueIdx + 1;
+    if (nextIdx < queue.length && queue[nextIdx]?.url) {
+      currentQueueIdx = nextIdx;
+      renderQueue();
+      const tr = queue[currentQueueIdx];
+      updatePlayerInfo(tr.label || tr.name, tr.album || tr.artists || '');
+      playAudio(tr.url);
+    } else {
+      $('#icon-play').style.display = '';
+      $('#icon-pause').style.display = 'none';
+      setPlayerState('idle');
+      localStorage.removeItem('claudio_playback');
+    }
   });
 
   audio.addEventListener('error', () => {
@@ -704,6 +717,30 @@ function addToHistory(title, artist) {
   if (playHistory.length > 20) playHistory = playHistory.slice(0, 20);
   localStorage.setItem('claudio_history', JSON.stringify(playHistory));
   renderHistory();
+}
+
+function renderFavs() {
+  const container = $('#favs-list');
+  const favs = JSON.parse(localStorage.getItem('claudio_favs') || '[]');
+  if (!favs.length) { container.innerHTML = ''; return; }
+  container.innerHTML = `<div class="favs-head">❤️ FAVORITES (${favs.length})</div>`
+    + favs.slice(0, 10).map((f, i) =>
+      `<div class="favs-item">
+        <span class="fi-del" data-fi="${i}" title="删除">✕</span>
+        <span class="fi-title">${esc(f.title)}${f.artist ? ' — ' + esc(f.artist) : ''}</span>
+      </div>`
+    ).join('');
+  // Delete handlers
+  container.querySelectorAll('.fi-del').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = parseInt(el.dataset.fi);
+      const favs = JSON.parse(localStorage.getItem('claudio_favs') || '[]');
+      favs.splice(idx, 1);
+      localStorage.setItem('claudio_favs', JSON.stringify(favs));
+      renderFavs();
+      updateFavUI();
+    });
+  });
 }
 
 function renderHistory() {
