@@ -14,3 +14,4 @@ Claudio-Portable/
 *.asar
 .build-temp/
 .eb-cache/
+electron-*.zip

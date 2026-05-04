@@ -233,15 +233,6 @@ app.whenReady().then(async () => {
 
   // Auto-start AI DJ on launch (slight delay for window to load)
   setTimeout(() => {
-    const apiKey = process.env.DEEPSEEK_API_KEY || state.getPref('deepseek_api_key') || '';
-    if (!apiKey) {
-      pushToRenderer({
-        type: 'system',
-        say: 'Welcome to Claudio.fm! Set your DeepSeek API key in Settings to get started.',
-        reason: '请在设置（SET）中填入 DeepSeek API 密钥，我就能为你推荐音乐了。',
-      });
-      return;
-    }
     const hour = new Date().getHours();
     const greeting = hour < 6 ? '深夜了，来点 ambient 氛围音乐。'
       : hour < 9 ? '早上好！新的一天开始了，来点清晨音乐。'

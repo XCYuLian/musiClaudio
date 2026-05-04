@@ -136,6 +136,14 @@ function ensureDir(dir) {
 
   // 6. Done
   const finalExe = path.join(finalDir, `${PRODUCT_NAME}.exe`);
+  // Set custom icon via resedit
+  const iconPath = path.resolve(__dirname, '..', 'icon.ico');
+  try {
+    console.log(`[build] Setting icon...`);
+    sh(`npx resedit-cli --in "${finalExe}" --out "${finalExe}" --set-icon "${iconPath}"`, { timeout: 60000 });
+    console.log(`[build] Icon applied`);
+  } catch (e) { console.log(`[build] Icon set failed (non-critical): ${e.message}`); }
+
   console.log(`\n[build] Done — ${finalExe}`);
   console.log(`[build] Size: ${(fs.statSync(finalExe).size / 1024 / 1024).toFixed(0)} MB`);
 

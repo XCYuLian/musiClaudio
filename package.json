@@ -30,12 +30,18 @@
       ".env"
     ],
     "extraResources": [
-      { "from": "data", "to": "data" },
-      { "from": "Crt", "to": "Crt" }
+      {
+        "from": "data",
+        "to": "data"
+      },
+      {
+        "from": "Crt",
+        "to": "Crt"
+      }
     ],
     "win": {
       "target": "nsis",
-      "icon": "Crt/App icon.png",
+      "icon": "Crt/App icon.ico",
       "sign": false,
       "signAndEditExecutable": false
     },
@@ -45,9 +51,9 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
+      "installerIcon": "Crt/App icon.ico",
+      "uninstallerIcon": "Crt/App icon.ico",
       "shortcutName": "Claudio",
-      "installerIcon": "Crt/App icon.png",
-      "uninstallerIcon": "Crt/App icon.png",
       "artifactName": "${productName}_Setup_${version}.${ext}"
     },
     "forceCodeSigning": false
@@ -67,7 +73,8 @@
   },
   "devDependencies": {
     "electron": "^33.0.0",
-    "electron-builder": "^25.0.0"
+    "electron-builder": "^25.0.0",
+    "rcedit": "^5.0.2"
   },
   "engines": {
     "node": ">=18"
