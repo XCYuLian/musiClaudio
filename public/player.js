@@ -535,7 +535,46 @@ function initAudio() {
     const liked = favorites.some(f => f.title === title);
     btnFav.classList.toggle('liked', liked);
   };
+  // ── Favorites side drawer ──
+  const favsDrawer = $('#favs-drawer');
+  const favsPanelList = $('#favs-panel-list');
+  const favsClose = $('#favs-close');
+  const favsBackdrop = document.querySelector('.favs-backdrop');
+
+  function openFavsDrawer() {
+    const favs = JSON.parse(localStorage.getItem('claudio_favs') || '[]');
+    favsPanelList.innerHTML = favs.length
+      ? favs.map((f, i) => `<div class="favs-panel-item" data-fi="${i}">
+          <span class="fp-idx">${String(i + 1).padStart(2, '0')}</span>
+          <div class="fp-info">
+            <div class="fp-title">${esc(f.title)}</div>
+            ${f.artist ? `<div class="fp-artist">${esc(f.artist)}</div>` : ''}
+          </div>
+        </div>`).join('')
+      : '<div style="color:#555;text-align:center;padding:40px 0;font-size:12px">— 暂无红心歌曲 —</div>';
+    // Click to play (by matching in main queue)
+    favsPanelList.querySelectorAll('.favs-panel-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const favs = JSON.parse(localStorage.getItem('claudio_favs') || '[]');
+        const f = favs[parseInt(el.dataset.fi)];
+        // Find in queue
+        const qi = queue.findIndex(t => t.label === f.title || t.name === f.title);
+        if (qi >= 0 && queue[qi]?.url) {
+          currentQueueIdx = qi;
+          renderQueue();
+          updatePlayerInfo(queue[qi].label || queue[qi].name, queue[qi].album || '');
+          playAudio(queue[qi].url);
+        }
+      });
+    });
+    favsDrawer.classList.remove('hidden');
+  }
+
+  favsClose.addEventListener('click', () => favsDrawer.classList.add('hidden'));
+  favsBackdrop.addEventListener('click', () => favsDrawer.classList.add('hidden'));
+
   btnFav.addEventListener('click', () => {
+    openFavsDrawer();
     const title = $('#np-title').textContent;
     const artist = $('#np-artist').textContent;
     if (!title || title === '—' || title === 'Claudio.fm') return;
@@ -548,6 +587,8 @@ function initAudio() {
     localStorage.setItem('claudio_favs', JSON.stringify(favorites));
     updateFavUI();
     renderFavs();
+    // Refresh drawer
+    openFavsDrawer();
   });
 
   audio.addEventListener('pause', () => {

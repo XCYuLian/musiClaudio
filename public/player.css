@@ -37,8 +37,8 @@ html, body {
 #app::before {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
   background-image:
-    linear-gradient(rgba(138,43,226,0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(138,43,226,0.06) 1px, transparent 1px);
+    linear-gradient(rgba(138,43,226,0.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(138,43,226,0.15) 1px, transparent 1px);
   background-size: 20px 20px;
 }
 /* Background breathing pulse behind clock */
@@ -380,9 +380,12 @@ html, body {
    QUEUE — scrollable with max-height
    ═══════════════════════════════════════════════════════ */
 #queue-area {
-  margin: 16px 16px 0; flex: 0 0 auto;
+  margin: 16px 16px 0; flex: 3; min-height: 0;
   display: flex; flex-direction: column;
-  max-height: 25%; min-height: 0;
+}
+#ai-area {
+  margin: 8px 16px 0; flex: 7; min-height: 0;
+  display: flex; flex-direction: column;
 }
 .queue-list {
   padding: 0 16px 8px;
@@ -483,12 +486,8 @@ html, body {
 }
 
 /* ═══════════════════════════════════════════════════════
-   AI CHAT — elastic fill, internal scroll
+   AI CHAT — elastic fill, internal scroll (flex: 7 of 3:7 ratio)
    ═══════════════════════════════════════════════════════ */
-#ai-area {
-  margin: 8px 16px 0; flex: 1; min-height: 0;
-  display: flex; flex-direction: column;
-}
 #ai-area .section-head { flex-shrink: 0; }
 /* ── AI badge + waveform in section head ── */
 .ai-badge {
@@ -746,6 +745,65 @@ html, body {
   font-family: 'Consolas', monospace;
 }
 .login-win-controls button:hover { color: #b388ff; }
+
+/* ═══════════════════════════════════════════════════════
+   FAVORITES SIDE DRAWER
+   ═══════════════════════════════════════════════════════ */
+#favs-drawer {
+  position: fixed; inset: 0; z-index: 300;
+  display: flex; justify-content: flex-end;
+  transition: opacity 0.3s;
+}
+#favs-drawer.hidden { opacity: 0; pointer-events: none; }
+.favs-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.3);
+  backdrop-filter: blur(4px);
+}
+.favs-panel {
+  position: relative; z-index: 1;
+  width: 280px; max-width: 80vw; height: 100%;
+  background: rgba(10,10,18,0.92);
+  backdrop-filter: blur(20px);
+  border-left: 1px solid #b388ff22;
+  display: flex; flex-direction: column;
+  animation: slideIn 0.3s ease;
+}
+@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+.favs-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 18px 14px; flex-shrink: 0;
+  font-size: 14px; font-weight: 800; letter-spacing: 3px;
+  color: #ff6666; font-family: 'Consolas', monospace;
+}
+.favs-close-btn {
+  width: 28px; height: 28px; border: 1px solid #ffffff10;
+  background: transparent; color: #666; cursor: pointer;
+  font-size: 12px; font-family: 'Consolas', monospace;
+}
+.favs-close-btn:hover { color: #ff6666; }
+.favs-panel-list {
+  flex: 1; overflow-y: auto; padding: 0 18px 20px;
+  scrollbar-width: thin; scrollbar-color: #b388ff44 transparent;
+}
+.favs-panel-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid #ffffff06;
+  cursor: pointer; transition: all .15s;
+}
+.favs-panel-item:hover { color: #69f0ae; }
+.favs-panel-item .fp-idx {
+  font-size: 10px; color: #555; width: 20px; text-align: right;
+  font-family: 'Consolas', monospace;
+}
+.favs-panel-item .fp-info { flex: 1; min-width: 0; }
+.favs-panel-item .fp-title {
+  font-size: 13px; font-weight: 500; color: #c8c8d0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.favs-panel-item .fp-artist {
+  font-size: 11px; color: #666; margin-top: 2px;
+}
 
 /* ═══════════════════════════════════════════════════════
    SETTINGS OVERLAY
