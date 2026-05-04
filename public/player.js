@@ -356,12 +356,25 @@ function handleDJResponse(data) {
     renderQueue();
   }
 
-  // Player — only auto-play if user explicitly requested music
+  // Player — TTS speech → then music
+  const ttsText = data.say || data.monologue || data.reply || '';
   if (!shouldAppend && hasTracks) {
     const tr = data.tracks[0];
     updatePlayerInfo(tr.label || tr.name, tr.album || '');
     if (tr.url) {
-      playAudio(tr.url);
+      if (ttsText && 'speechSynthesis' in window) {
+        // Built-in TTS DJ speech → then music
+        speakText(ttsText, () => {
+          setTimeout(() => playAudio(tr.url), 400);
+        });
+        // Fallback: if TTS doesn't trigger callback within 15s, play anyway
+        setTimeout(() => {
+          const audio = $('#audio');
+          if (!audio.src || audio.paused) playAudio(tr.url);
+        }, 15000);
+      } else {
+        playAudio(tr.url);
+      }
     } else {
       setPlayerState('idle');
     }
@@ -838,6 +851,24 @@ async function loadSavedPlaylist() {
 }
 
 // ── Resume playback on restart ──
+// ── Built-in TTS (Chromium speechSynthesis) ──
+function speakText(text, onEnd) {
+  if (!text || !('speechSynthesis' in window)) {
+    if (onEnd) onEnd();
+    return;
+  }
+  // Cancel any ongoing speech
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'zh-CN';
+  u.rate = 0.95;
+  u.pitch = 1.0;
+  u.volume = 0.9;
+  if (onEnd) u.onend = onEnd;
+  u.onerror = () => { if (onEnd) onEnd(); };
+  speechSynthesis.speak(u);
+}
+
 function savePlaybackState() {
   const audio = $('#audio');
   if (!audio.src || audio.src.endsWith('null')) return;
