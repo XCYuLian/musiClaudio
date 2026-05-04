@@ -761,12 +761,9 @@ function renderHistory() {
 // ── Load saved playlist from local archive ──
 async function loadSavedPlaylist() {
   try {
-    const { ok, tracks, count } = await window.claudio.getSavedPlaylist();
-    if (ok && tracks?.length) {
-      queue = tracks.map(label => ({ label, name: label }));
-      currentQueueIdx = 0;
-      renderQueue();
-      console.log(`[archive] Loaded ${count} saved tracks`);
+    const { ok, count } = await window.claudio.getSavedPlaylist();
+    if (ok && count > 0) {
+      console.log(`[archive] ${count} tracks available (AI will reference them, not queue directly)`);
     }
   } catch { /* no saved data */ }
 }
