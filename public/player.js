@@ -441,6 +441,11 @@ function initAI() {
 function updatePlayerInfo(title, sub) {
   $('#np-title').textContent = title || 'Claudio.fm';
   $('#np-artist').textContent = sub || '';
+  // Update fav icon
+  try {
+    const favs = JSON.parse(localStorage.getItem('claudio_favs') || '[]');
+    $('#btn-fav').classList.toggle('liked', favs.some(f => f.title === title));
+  } catch { /* ignore */ }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -518,6 +523,28 @@ function initAudio() {
   // Skip controls
   $('#btn-prev').addEventListener('click', () => skipTrack(-1));
   $('#btn-next').addEventListener('click', () => skipTrack(1));
+
+  // ── Heart / favorite ──
+  let favorites = JSON.parse(localStorage.getItem('claudio_favs') || '[]');
+  const btnFav = $('#btn-fav');
+  const updateFavUI = () => {
+    const title = $('#np-title').textContent;
+    const liked = favorites.some(f => f.title === title);
+    btnFav.classList.toggle('liked', liked);
+  };
+  btnFav.addEventListener('click', () => {
+    const title = $('#np-title').textContent;
+    const artist = $('#np-artist').textContent;
+    if (!title || title === '—' || title === 'Claudio.fm') return;
+    const idx = favorites.findIndex(f => f.title === title);
+    if (idx >= 0) {
+      favorites.splice(idx, 1);
+    } else {
+      favorites.unshift({ title, artist, time: fmtNow() });
+    }
+    localStorage.setItem('claudio_favs', JSON.stringify(favorites));
+    updateFavUI();
+  });
 
   audio.addEventListener('pause', () => {
     isPlaying = false;

@@ -34,9 +34,13 @@ html, body {
   border-radius: 28px;
 }
 /* Glassmorphism containers */
-#player-area, #queue-area, #ai-area, #input-area, .settings-panel {
+#player-area, #queue-area, #ai-area, #input-area, .settings-panel, .login-card {
   border-radius: 28px;
   overflow: hidden;
+}
+#settings-overlay, #login-overlay {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -233,6 +237,14 @@ html, body {
 .ctrl-icon.play-main:hover:not(:disabled) {
   box-shadow: 0 0 20px rgba(179,136,255,0.5);
   transform: scale(1.05);
+}
+/* Heart / favorite */
+.ctrl-icon.fav-icon.liked {
+  color: #ff6666; border-color: #ff666644;
+}
+.ctrl-icon.fav-icon.liked svg {
+  fill: #ff6666; stroke: #ff6666;
+  filter: drop-shadow(0 0 6px rgba(255,102,102,0.5));
 }
 
 /* Progress */
