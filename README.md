@@ -1,54 +1,105 @@
-# Claudio — 个人 AI 电台
+# Claudio.fm — Personal AI Radio DJ
 
-一个能读懂你听歌习惯、像真正的 DJ 一样播报音乐的个人 AI 电台。
+你的私人 AI 电台 DJ。了解你的品味、感知时间与天气、自动推荐并播放音乐。
 
-## 它是怎么工作的？
+---
+
+## 快速获取你的网易云 UID
+
+> 只有获取正确的 UID，Claudio 才能读懂你的灵魂。
+
+### 方法一：手机 App（推荐）
+
+1. 打开**手机网易云音乐 App**，确保已登录。
+2. 点击底部 **"我的"** → 点击自己的**头像**。
+3. 进入个人主页后，点击右上角 **"..."** → **"分享"** → **"复制链接"**。
+4. 你会获得类似下方的链接：
 
 ```
-你的听歌记录 → Claudio 大脑 (DeepSeek) → DJ 播报词 → TTS 语音合成 → 播放
-       ↑                  ↑                    ↓
-   user/*.md          网易云检索            PWA 客户端
-  (品味/作息)        (歌曲/歌词)          (WebSocket)
+https://y.music.163.com/m/user?id=2034554276
 ```
 
-**四层架构**：
-1. **外部上下文** — 你的品味文件、DeepSeek 大脑、网易云 API、Fish TTS
-2. **本地大脑** — Node.js 核心服务 (router / context / claude / scheduler / tts / state.db)
-3. **运行时聚合** — 6 块上下文拼装 → 模型前向 → JSON 输出 → 后处理
-4. **交互表层** — PWA 客户端 + HTTP/WebSocket 通信
+5. 链接末尾 `id=` 后面的那串数字（如 `2034554276`）就是你的专属 **UID**。
 
-## 核心模块
+### 方法二：网页版
 
-| 模块 | 文件 | 职责 |
-|------|------|------|
-| 意图分流 | `lib/router.js` | 简单指令直连 → 音乐搜索走网易云 → NL 对话走 LLM |
-| 提示词组装 | `lib/context.js` | 6 块上下文拼装 → system prompt |
-| 大脑适配器 | `lib/claude.js` | DeepSeek API 调用 + JSON 强校验 |
-| 节律调度 | `lib/scheduler.js` | cron 定时任务 (早间播报、情绪检查) |
-| 声音管线 | `lib/tts.js` | Fish Audio TTS → MP3 缓存 |
+1. 打开 [music.163.com](https://music.163.com) 并登录。
+2. 点击右上角头像进入个人主页。
+3. 浏览器地址栏中的 URL 格式为 `https://music.163.com/#/user/home?id=XXXXXXX`。
+4. `id=` 后面的数字就是你的 UID。
 
-## 快速开始
+---
+
+## 启动 Claudio
 
 ```bash
-# 1. 安装依赖
-npm install
+# 开发模式
+npm start
 
-# 2. 配置环境变量
-cp .env.example .env
-# 编辑 .env，填入 DEEPSEEK_API_KEY
-
-# 3. 启动开发模式
-npm run dev
+# 打包 EXE
+npm run build
 ```
 
-## 用户文件
+首次启动会显示登录界面——输入你的网易云 UID 即可自动导入歌单并生成品味画像。
 
-在 `user/` 目录下编辑你的音乐品味：
-- `taste.md` — 喜欢的流派、艺人、关键词
-- `routines.md` — 每日作息和对应音乐需求
-- `mood-rules.md` — 情绪/天气 → 音乐映射规则
-- `playlists.json` — 歌单模板
+---
+
+## 项目结构
+
+```
+├── electron-main.js      # Electron 主进程
+├── electron-preload.js   # IPC 桥接
+├── lib/
+│   ├── claude.js         # DeepSeek API 调用
+│   ├── context.js        # Prompt 组装（DNA/时间/天气/记忆注入）
+│   ├── router.js         # 意图分类 + 指令分流
+│   ├── scheduler.js      # 定时播报 + 自动启动
+│   ├── ncm.js            # 网易云 API（模块直连 + 网页 fallback）
+│   ├── import-netease.js # 歌单导入（分页抓取，1500首上限）
+│   ├── profiler.js       # Soul DNA 品味画像生成
+│   ├── proxy.js          # UnblockNeteaseMusic VIP 代理
+│   ├── tts.js            # Fish Audio TTS 合成
+│   ├── weather.js        # IP 定位 + Open-Meteo 天气
+│   ├── state.js          # SQLite 持久化
+│   └── paths.js          # 统一路径管理
+├── prompts/
+│   └── dj-persona.md     # DJ 人格系统提示词
+├── public/
+│   ├── player.html       # 前端 UI
+│   ├── player.css        # 赛博朋克样式
+│   └── player.js         # 前端逻辑
+├── data/                 # 运行时数据
+│   ├── state.db          # 播放记录/偏好
+│   ├── playlists/        # 导入的歌单
+│   └── internal_taste_dna.md  # 品味画像
+└── user/                 # 用户语料（可选）
+    ├── taste.md
+    ├── routines.md
+    └── mood-rules.md
+```
+
+---
+
+## 环境变量 (.env)
+
+```env
+DEEPSEEK_API_KEY=sk-xxx      # DeepSeek API 密钥
+DEEPSEEK_MODEL=deepseek-chat # 模型名称
+NETEASE_COOKIE=xxx           # 网易云 MUSIC_U cookie（可选，提升导入成功率）
+FISH_AUDIO_API_KEY=xxx       # TTS 密钥（可选）
+LAT=39.9                     # 默认纬度
+LON=116.4                    # 默认经度
+```
+
+---
 
 ## 技术栈
 
-Node.js / Express / WebSocket / SQLite / DeepSeek API / Fish Audio TTS
+- **Runtime**: Electron + Node.js ≥ 18
+- **AI**: DeepSeek API (OpenAI-compatible)
+- **音乐**: NeteaseCloudMusicApi (模块直连)
+- **代理**: @unblockneteasemusic/server (VIP 解锁)
+- **数据库**: sql.js (SQLite WASM)
+- **定时**: node-cron
+- **TTS**: Fish Audio
+- **天气**: Open-Meteo + ipapi.co

@@ -29,7 +29,13 @@
       "prompts/**/*",
       "user/**/*",
       "public/**/*",
-      "node_modules/**/*"
+      "data/**/*",
+      "node_modules/**/*",
+      "README.md",
+      ".env.example"
+    ],
+    "extraResources": [
+      { "from": "data", "to": "data" }
     ],
     "win": {
       "target": "nsis",
