@@ -37,8 +37,8 @@ html, body {
 #app::before {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
   background-image:
-    linear-gradient(rgba(138,43,226,0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(138,43,226,0.04) 1px, transparent 1px);
+    linear-gradient(rgba(138,43,226,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(138,43,226,0.06) 1px, transparent 1px);
   background-size: 20px 20px;
 }
 /* Background breathing pulse behind clock */
@@ -380,9 +380,9 @@ html, body {
    QUEUE — scrollable with max-height
    ═══════════════════════════════════════════════════════ */
 #queue-area {
-  margin: 16px 16px 0; flex-shrink: 0;
+  margin: 16px 16px 0; flex: 0 0 auto;
   display: flex; flex-direction: column;
-  max-height: 35%; min-height: 0;
+  max-height: 25%; min-height: 0;
 }
 .queue-list {
   padding: 0 16px 8px;
@@ -432,7 +432,7 @@ html, body {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .queue-track.active .qt-artist { color: #69f0ae88; }
-.queue-track.dead { color: #444; opacity: 0.5; pointer-events: none; }
+.queue-track.dead { color: #444; opacity: 0.4; filter: grayscale(1); pointer-events: none; }
 .queue-track.dead .queue-idx { color: #333; }
 /* ── Play history ── */
 .history-list {

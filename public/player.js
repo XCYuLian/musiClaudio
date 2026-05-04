@@ -582,10 +582,24 @@ function initAudio() {
   });
 
   audio.addEventListener('error', () => {
-    showAI(t('audioError'), null);
+    // Silent skip: don't show error, just move to next track
+    console.log('[audio] Track failed, auto-skipping...');
     $('#progress-fill').style.width = '0%';
     setPlayerState('idle');
     if (stuckTimer) clearTimeout(stuckTimer);
+    // Brief DJ message then skip
+    showAI('Signal\'s a bit unstable — switching to the next one for you.', '信号不太稳，帮你换一首。');
+    setTimeout(() => {
+      let next = currentQueueIdx + 1;
+      while (next < queue.length && !queue[next]?.url) next++;
+      if (next < queue.length && queue[next]?.url) {
+        currentQueueIdx = next;
+        renderQueue();
+        const tr = queue[currentQueueIdx];
+        updatePlayerInfo(tr.label || tr.name, tr.album || tr.artists || '');
+        playAudio(tr.url);
+      }
+    }, 1500);
   });
 
   // Detect stalled/broken playback
@@ -790,21 +804,26 @@ function loadPlaybackState() {
   try {
     const saved = JSON.parse(localStorage.getItem('claudio_playback'));
     if (!saved?.url) return;
-    if (saved.queue?.length) {
-      queue = saved.queue;
-      currentQueueIdx = saved.queueIdx || 0;
-      renderQueue();
-    }
+    // Only restore current track + position, NOT the full queue (could be stale 1000+ items)
+    queue = [{ label: saved.title, name: saved.title, url: saved.url }];
+    currentQueueIdx = 0;
+    renderQueue();
     updatePlayerInfo(saved.title, saved.artist);
     const audio = $('#audio');
     audio.src = saved.url;
     audio.currentTime = saved.position || 0;
     setPlayerState('ready');
-    audio.play().catch(() => {
-      // Autoplay may be blocked; user can click play
-    });
+    audio.play().catch(() => {});
   } catch { /* ignore */ }
 }
+// Clear stale playback data from localStorage (old huge queues)
+try {
+  const old = JSON.parse(localStorage.getItem('claudio_playback') || '{}');
+  if (old.queue?.length > 20) {
+    console.log('[cleanup] Removing stale playback data with ' + old.queue.length + ' tracks');
+    localStorage.removeItem('claudio_playback');
+  }
+} catch { /* ignore */ }
 
 function fmtTime(sec) {
   const m = Math.floor(sec / 60);
