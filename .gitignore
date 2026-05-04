@@ -13,3 +13,4 @@ out/
 Claudio-Portable/
 *.asar
 .build-temp/
+.eb-cache/
