@@ -460,30 +460,6 @@ html, body {
 .history-item .hi-title {
   flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-/* ── Favorites list ── */
-.favs-list {
-  margin-top: 6px; padding: 0 0 4px;
-  border-top: 1px solid #ff666622;
-  max-height: 100px; overflow-y: auto;
-  scrollbar-width: thin; scrollbar-color: #b388ff44 transparent;
-}
-.favs-head {
-  font-size: 9px; font-weight: 700; letter-spacing: 2px;
-  color: #ff666688; padding: 6px 0 2px;
-  font-family: 'Consolas', 'Courier New', monospace;
-}
-.favs-item {
-  display: flex; align-items: center; gap: 6px;
-  padding: 2px 0; font-size: 11px; color: #888;
-}
-.favs-item .fi-del {
-  color: #ff666644; cursor: pointer; font-size: 10px;
-  flex-shrink: 0; transition: color .15s;
-}
-.favs-item .fi-del:hover { color: #ff6666; }
-.favs-item .fi-title {
-  flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
 
 /* ═══════════════════════════════════════════════════════
    AI CHAT — elastic fill, internal scroll (flex: 7 of 3:7 ratio)

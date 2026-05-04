@@ -9,11 +9,12 @@ const $$ = (s) => document.querySelectorAll(s);
 let isPlaying = false;
 let queue = [];
 let currentQueueIdx = -1;
-let playerState = 'idle';   // 'idle' | 'ready' | 'playing'
+let playerState = 'idle';
 let dark = true;
 let lang = localStorage.getItem('claudio_lang') || 'en';
 let chatMessages = [];
 let playHistory = JSON.parse(localStorage.getItem('claudio_history') || '[]');
+let isFetchingAI = false;  // prevent double-trigger
 
 function fmtNow() {
   const now = new Date();
@@ -119,7 +120,6 @@ function applyLanguage() {
   renderQueue();
   renderChat();
   renderHistory();
-  renderFavs();
   updateClock();
 }
 
@@ -260,6 +260,22 @@ function setPlayerState(state) {
 // ═══════════════════════════════════════════════════════
 // CHAT — Glowing input → backend → UI update
 // ═══════════════════════════════════════════════════════
+// ── AI fetch wrapper with state lock ──
+async function fetchAI(userMessage, hiddenContext = '') {
+  if (isFetchingAI) { console.log('[lock] AI already fetching, skipping'); return; }
+  isFetchingAI = true;
+  try {
+    const msg = hiddenContext ? `${hiddenContext}\n${userMessage}` : userMessage;
+    const res = await window.claudio.sendMessage(msg);
+    if (!res.ok) throw new Error(res.error);
+    handleDJResponse(res);
+  } catch (err) {
+    showAI(t('connError'), err.message);
+  } finally {
+    isFetchingAI = false;
+  }
+}
+
 function initChat() {
   const input = $('#chat-input');
   const btn = $('#btn-send');
@@ -269,20 +285,11 @@ function initChat() {
     if (!msg) return;
     input.value = '';
     setInputDisabled(true);
-    // Add user message to chat history
     chatMessages.push({ role: 'user', content: msg, time: fmtNow() });
     renderChat();
-
-    try {
-      const res = await window.claudio.sendMessage(msg);
-      if (!res.ok) throw new Error(res.error);
-      handleDJResponse(res);
-    } catch (err) {
-      showAI(t('connError'), err.message);
-    } finally {
-      setInputDisabled(false);
-      input.focus();
-    }
+    await fetchAI(msg);
+    setInputDisabled(false);
+    input.focus();
   }
 
   btn.addEventListener('click', send);
@@ -441,11 +448,12 @@ function updatePlayerInfo(title, sub) {
 function initQueue() { renderQueue(); }
 
 async function checkRefill() {
-  // Count remaining tracks with URLs from current position
   const remaining = queue.slice(currentQueueIdx + 1).filter(t => t.url).length;
-  if (remaining < 2 && queue.length > 0) {
-    console.log('[refill] Queue low (' + remaining + ' remaining), triggering AI...');
-    try { await window.claudio.refillQueue(); } catch { /* offline */ }
+  if (remaining === 0 && !isFetchingAI) {
+    console.log('[refill] Queue empty, triggering AI for next track...');
+    const hour = new Date().getHours();
+    const mood = hour < 6 ? '深夜' : hour < 9 ? '清晨' : hour < 12 ? '上午' : hour < 17 ? '下午' : '晚上';
+    fetchAI(`${mood}了，请推荐下一首歌。`, '');
   }
 }
 
@@ -574,7 +582,6 @@ function initAudio() {
   favsBackdrop.addEventListener('click', () => favsDrawer.classList.add('hidden'));
 
   btnFav.addEventListener('click', () => {
-    openFavsDrawer();
     const title = $('#np-title').textContent;
     const artist = $('#np-artist').textContent;
     if (!title || title === '—' || title === 'Claudio.fm') return;
@@ -587,8 +594,12 @@ function initAudio() {
     localStorage.setItem('claudio_favs', JSON.stringify(favorites));
     updateFavUI();
     renderFavs();
-    // Refresh drawer
     openFavsDrawer();
+    // Heart feedback: trigger AI with hidden context
+    if (!isFetchingAI && favorites.some(f => f.title === title)) {
+      const hidden = `[系统：用户刚刚红心收藏了《${title}》${artist ? ' - ' + artist : ''}。请给出一句简短正面反馈（≤20字），然后顺势推荐下一首歌。]`;
+      fetchAI('', hidden);
+    }
   });
 
   audio.addEventListener('pause', () => {
