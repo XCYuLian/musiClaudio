@@ -251,10 +251,9 @@ function initWindowControls() {
 // ═══════════════════════════════════════════════════════
 function setPlayerState(state) {
   playerState = state;
-  const label = $('#np-label');
+  const label = $('#np-label-text');
   const playBtn = $('#btn-play');
-
-  label.textContent = t(state);
+  if (label) label.textContent = t(state);
   playBtn.disabled = (state === 'idle');
 }
 
