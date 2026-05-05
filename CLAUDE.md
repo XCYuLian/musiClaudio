@@ -204,6 +204,8 @@ Git Bash 的 `TEMP=/tmp` 会导致 electron-builder 跨盘失败。
 | 37 | AI 词汇表枯竭 | DeepSeek 华语艺人知识有限，高频请求后必然循环 | 120+ 艺人池注入 prompt + 歌单艺人随机采样 |
 | 38 | filter 拦截后又被放行 | `filterRepeats` 全杀后 `return [tracks[0]]` 把被拦的歌又放回去 | 全杀后返回 `[]`，触发硬兜底而非重播被拦曲 |
 | 39 | 最大化按钮失效 | `favs.js` 只绑了 min/close，漏了 max 的 click 事件 | 补 `$('#btn-max').addEventListener` |
+| 40 | 网易云 405 限流 | 预搜索 + resolveTrack + 模块 API 高频调用，NeteaseCloudMusicApi 被限 | `callModule` 60s 静默降级 + 预搜索减半 + refill 30s 冷却 |
+| 41 | refill 死循环烧 Token | filter 拦截→空→refill→AI→拦截→死循环 | 拦截后走 Chillwave 兜底 + `_lastRefill` 冷却 |
 
 ## 📖 更多文档
 - `docs/v1_context/architecture.md` — V1 架构详解

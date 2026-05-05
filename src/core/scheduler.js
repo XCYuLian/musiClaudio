@@ -26,29 +26,19 @@ const HARD_FALLBACK_IDS = [
 function setCallback(fn) { onTask = fn; }
 function broadcast(data) { if (onTask) onTask(data); }
 
-// Get a playable track from hardcoded free IDs, filtered against 24h plays
+// Get a playable track from hardcoded free IDs.
+// Hard fallback is the LAST resort — it bypasses the filter.
 async function resolveHardFallback() {
   const shuffled = [...HARD_FALLBACK_IDS].sort(() => Math.random() - 0.5);
   for (const fb of shuffled) {
     try {
       const info = await ncm.getEmergencyUrl(fb.id);
       if (info?.url) {
-        const track = { id: fb.id, name: fb.name, artists: fb.artist,
+        return { id: fb.id, name: fb.name, artists: fb.artist,
           label: `${fb.artist} - ${fb.name}`, url: info.url, album: '' };
-        // Filter: don't play the same track that was just played
-        const filtered = filterRepeats([track]);
-        if (filtered.length) return filtered[0];
-        console.log(`[fallback] Skipped ${fb.name} (recently played), trying next...`);
       }
     } catch {}
   }
-  // All filtered — pick first anyway (better than silence)
-  const fb = HARD_FALLBACK_IDS[0];
-  try {
-    const info = await ncm.getEmergencyUrl(fb.id);
-    if (info?.url) return { id: fb.id, name: fb.name, artists: fb.artist,
-      label: `${fb.artist} - ${fb.name}`, url: info.url, album: '' };
-  } catch {}
   return null;
 }
 
@@ -84,14 +74,17 @@ async function runTask({ trigger, userInput, executionTrace }) {
       'Math Rock', 'Afrobeat', 'Funk Soul', 'Psychedelic Rock', 'Ambient',
     ];
     const tag1 = nicheTags[Math.floor(Math.random() * nicheTags.length)];
-    const tag2 = nicheTags[Math.floor(Math.random() * nicheTags.length)];
+    // Add random modifier to get different results each time
+    const modifiers = ['精选', '冷门', '小众', '独立', '地下', '氛围', '深夜', '迷幻', '治愈', '律动'];
+    const mod = modifiers[Math.floor(Math.random() * modifiers.length)];
+    const searchQuery = `${tag1} ${mod}`;
     let preSearchResults = '';
+    let preSearchTracks = [];
     try {
-      const r1 = await ncm.search(tag1, 5);
-      const r2 = await ncm.search(tag2, 5);
-      const combined = [...r1, ...r2].slice(0, 8);
-      preSearchResults = combined.map((t, i) => `${i + 1}. ${t.label}`).join('\n');
-      console.log(`[scheduler] Pre-search: "${tag1}" + "${tag2}" → ${combined.length} tracks`);
+      const results = await ncm.search(searchQuery, 8);
+      preSearchTracks = results;
+      preSearchResults = results.map((t, i) => `${i + 1}. ${t.label}`).join('\n');
+      console.log(`[scheduler] Pre-search: "${searchQuery}" → ${results.length} tracks`);
     } catch { /* pre-search optional */ }
 
     const s = state.getState();
@@ -104,21 +97,50 @@ async function runTask({ trigger, userInput, executionTrace }) {
     console.log(`[scheduler] AI speech: "${speech.substring(0, 60)}"`);
     console.log(`[scheduler] AI search_query: "${query}"`);
 
-    // Resolve tracks
+    // Resolve tracks — use pre-search match if available (skip re-search)
     let tracks = [];
     if (query) {
-      try {
-        tracks = await ncm.resolvePlaylist([query]);
-        tracks = filterRepeats(tracks);
-      } catch (e) { console.error('[scheduler] resolve:', e.message); }
+      // Normalize for comparison (artist - song vs artist song)
+      const norm = (s) => (s||'').toLowerCase().replace(/ - /g, ' ').replace(/\s+/g, ' ').trim();
+      const qNorm = norm(query);
+      const preMatch = preSearchTracks.find(t => {
+        const tNorm = norm(t.label);
+        return tNorm.includes(qNorm) || qNorm.includes(tNorm);
+      });
+      if (preMatch) {
+        const urlInfo = await ncm.getSongUrl(preMatch.id).catch(() => null);
+        if (urlInfo?.url) {
+          tracks = [{ ...preMatch, url: urlInfo.url }];
+          console.log(`[scheduler] Pre-search direct match: ${preMatch.label}`);
+        }
+      }
+      // Fall back to normal resolve
+      if (!tracks.length) {
+        try {
+          tracks = await ncm.resolvePlaylist([query]);
+        } catch (e) { console.error('[scheduler] resolve:', e.message); }
+      }
+      tracks = filterRepeats(tracks);
     }
     if (!tracks.length) {
-      console.log('[scheduler] No tracks after filter — trying hard fallback');
-      const hard = await resolveHardFallback();
-      if (hard) {
-        tracks = [hard];
-        state.addPlay(hard.label || hard.name, 'ai');  // record hard fallback too
-        console.log(`[scheduler] Hard fallback: ${hard.label}`);
+      console.log('[scheduler] AI pick blocked — trying pre-search alternatives');
+      // Try other tracks from pre-search before hitting hard fallback
+      for (const t of preSearchTracks) {
+        if (t.label === query || filterRepeats([t]).length === 0) continue;
+        const urlInfo = await ncm.getSongUrl(t.id).catch(() => null);
+        if (urlInfo?.url) {
+          tracks = [{ ...t, url: urlInfo.url }];
+          console.log(`[scheduler] Pre-search fallback: ${t.label}`);
+          break;
+        }
+      }
+      if (!tracks.length) {
+        console.log('[scheduler] Pre-search exhausted — trying hard fallback');
+        const hard = await resolveHardFallback();
+        if (hard) {
+          tracks = [hard];
+          console.log(`[scheduler] Hard fallback: ${hard.label}`);
+        }
       }
       _schedulerFailStreak++;
     } else {

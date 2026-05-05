@@ -13,6 +13,7 @@ const SLASH_CMDS = [
   { name: 'skip',    pattern: /^\/(skip|next)/i },
   { name: 'playing', pattern: /^\/(now|playing|status)/i },
   { name: 'help',    pattern: /^\/(help|start)/i },
+  { name: 'story',   pattern: /^\/story/i },
 ];
 
 const MUSIC_RE = /^(播放|放首|搜一下?|点一首?|来一首?|放点|来点|我想听|给我放)\s*/;
@@ -68,6 +69,12 @@ async function handleMusic(query) {
     resolved = await ncm.resolvePlaylist([searchQuery]);
     resolved = filterRepeats(resolved);
   } catch {}
+  if (!resolved.length && searchQuery) {
+    try {
+      const fb = await ncm.search('Chillwave', 3);
+      if (fb.length) resolved = [fb[0]];
+    } catch {}
+  }
   // TTS
   let tts = null;
   try { const p = await synthesize(speech); if (p) tts = 'data:audio/mp3;base64,' + require('fs').readFileSync(p).toString('base64'); } catch {}
@@ -81,16 +88,14 @@ async function handleMusic(query) {
 
 // ── Chat pipeline ──
 async function handleChat(input, intent = 'chat') {
-  // Pre-search for auto-refill: give AI real songs to pick from
+  // Pre-search only for explicit auto-refill, not every chat cycle
   let preSearchResults = '';
-  if (intent === 'auto' || intent === 'chat') {
+  if (intent === 'auto') {
     try {
-      const tags = ['City Pop','Neo-Soul','Jazz Fusion','Dream Pop','Trip-Hop','Bossa Nova','Chillwave'];
-      const t1 = tags[Math.floor(Math.random()*tags.length)];
-      const t2 = tags[Math.floor(Math.random()*tags.length)];
-      const r1 = await ncm.search(t1, 4);
-      const r2 = await ncm.search(t2, 4);
-      preSearchResults = [...r1, ...r2].slice(0, 6).map((t,i) => `${i+1}. ${t.label}`).join('\n');
+      const tags = ['City Pop','Neo-Soul','Jazz Fusion','Dream Pop','Trip-Hop'];
+      const t = tags[Math.floor(Math.random()*tags.length)];
+      const results = await ncm.search(t, 6);
+      preSearchResults = results.map((t,i) => `${i+1}. ${t.label}`).join('\n');
     } catch {}
   }
   const s = state.getState();
@@ -108,6 +113,13 @@ async function handleChat(input, intent = 'chat') {
       tracks = await ncm.resolvePlaylist([query]);
       tracks = filterRepeats(tracks);
     } catch {}
+    // If filter blocked everything, go hard fallback instead of refill loop
+    if (!tracks.length && query) {
+      try {
+        const fb = await ncm.search('Chillwave', 3);
+        if (fb.length) tracks = [fb[0]];
+      } catch {}
+    }
   }
   // TTS
   let tts = null;

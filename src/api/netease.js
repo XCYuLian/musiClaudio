@@ -35,12 +35,27 @@ async function webGet(endpoint) {
 }
 
 // ── Module caller: pass query + cookie ──
+let _moduleThrottled = 0;
 async function callModule(name, query = {}) {
   if (!ncmModule) throw new Error('NeteaseCloudMusicApi not installed');
+  // Throttle: if rate-limited, skip module calls for 60s
+  if (Date.now() - _moduleThrottled < 60000) throw new Error('Module throttled');
   const fn = ncmModule[name];
   if (!fn) throw new Error(`Module function "${name}" not found`);
   const cookie = getCookie();
-  return fn({ ...query, ...(cookie ? { cookie } : {}) });
+  try {
+    const res = await fn({ ...query, ...(cookie ? { cookie } : {}) });
+    // Detect rate limit response
+    if (res?.body?.code === 405 || res?.status === 405) {
+      _moduleThrottled = Date.now();
+      throw new Error('Module rate-limited');
+    }
+    return res;
+  } catch (e) {
+    // Any error = throttle for 60s, fall back to web API
+    _moduleThrottled = Date.now();
+    throw e;
+  }
 }
 
 // ── User profile / VIP verification ──
@@ -100,7 +115,7 @@ async function search(keywords, limit = 10) {
     try {
       const res = await callModule('search', { keywords, limit, type: 1 });
       return (res.body?.result?.songs || []).map(formatTrack);
-    } catch (e) { console.log('[netease] module search failed:', e.message); }
+    } catch (e) { if (!e.message?.includes('throttled')) console.log('[netease] module search failed:', e.message); }
   }
   // 2. Web fallback
   const data = await webGet(`/cloudsearch/pc?s=${encodeURIComponent(keywords)}&type=1&limit=${limit}`);
@@ -170,7 +185,7 @@ async function getSongUrl(trackId) {
         const retry = await proxyGetSongUrl(trackId);
         if (retry?.url) return retry;
       }
-    } catch (e) { console.log('[netease] module song_url failed:', e.message); }
+    } catch (e) { if (!e.message?.includes('throttled')) console.log('[netease] module song_url failed:', e.message); }
   }
 
   // ── Proxy fallback (for non-VIP or VIP API failure) ──

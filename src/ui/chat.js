@@ -6,8 +6,22 @@
  *   playAudio, renderQueue, updatePlayerInfo, setPlayerState, $, t, fmtNow, esc.
  */
 
-// ── TTS instance guard (Bug 2 fix: prevent overlapping speech) ──
+// ── TTS instance guard + global gain for DJ volume control ──
 let _currentTts = null;
+let _ttsGain = null, _ttsActx = null;
+
+function getTtsGain() {
+  const slider = $('#dj-vol-slider');
+  return slider ? parseInt(slider.value) / 100 : 1.6;
+}
+// Live update: slider changes immediately affect current TTS
+function initDjVolume() {
+  const slider = $('#dj-vol-slider');
+  if (!slider) return;
+  slider.addEventListener('input', () => {
+    if (_ttsGain) _ttsGain.gain.value = getTtsGain();
+  });
+}
 
 // ── Retry state (Bug 4 fix: prevent infinite fallback→refill loop) ──
 let _fallbackCount = 0;
@@ -78,7 +92,14 @@ function playTts(ttsFile, volume, onEnd) {
   }
   const tts = new Audio(ttsFile);
   _currentTts = tts;
-  tts.volume = Math.min(volume * 1.4, 1.0);  // boost DJ voice 40%
+  try {
+    _ttsActx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = _ttsActx.createMediaElementSource(tts);
+    _ttsGain = _ttsActx.createGain();
+    _ttsGain.gain.value = getTtsGain();
+    src.connect(_ttsGain);
+    _ttsGain.connect(_ttsActx.destination);
+  } catch { tts.volume = 1.0; }
   tts.onended = () => {
     _currentTts = null;
     if (onEnd) onEnd();
@@ -115,8 +136,12 @@ async function fetchAI(msg, hidden) {
   }
 }
 
+let _lastRefill = 0;
 async function refill() {
   if (_busy) return;
+  // Cooldown: don't refill within 30s of last refill
+  if (Date.now() - _lastRefill < 30000) return;
+  _lastRefill = Date.now();
   // Plan 2: circuit breaker — don't call AI if search keeps failing
   if (_failStreak >= MAX_FAIL_STREAK) {
     console.log('[breaker] refill blocked — circuit open');
@@ -185,7 +210,7 @@ function handleResponse(data) {
       const a = document.getElementById('audio');
       const v = a ? a.volume : 1;
       if (a && a.src && !a.src.endsWith('null')) {
-        fadeVol(a, v, 0.10, () => {
+        fadeVol(a, v, v, () => {
           playTts(ttsFile, v, () => { fadeVol(a, a.volume, v); _busy = false; unlockUI(); });
         });
       } else {
@@ -214,29 +239,52 @@ function handleResponse(data) {
     }
     currentTrack = tr;
     updatePlayerInfo(tr.label||tr.name, tr.album||'', tr.id);
+    const a = document.getElementById('audio');
+    const v = a ? a.volume : 1;
+    const isPlaying = a && a.src && !a.src.endsWith('null') && !a.paused;
+
+    // V2.8: Crossfade — if current song is playing, fade it out during DJ speech, then start new song
     if (ttsFile && ttsFile.startsWith('data:')) {
-      const a = document.getElementById('audio');
-      const v = a ? a.volume : 1;
-      fadeVol(a, v, 0.10, () => {
-        playTts(ttsFile, v, () => {
-          fadeVol(a, a.volume, v);
-          _busy = false;
-          unlockUI();
-          setTimeout(() => playAudio(tr.url), 400);
+      if (isPlaying) {
+        // Crossfade: duck current song → DJ speaks → at 50% new song fades in
+        fadeVol(a, a.volume, 0.06, () => {
+          const ttsAudio = new Audio(ttsFile);
+          ttsAudio.preload = 'metadata';
+          ttsAudio.addEventListener('loadedmetadata', () => {
+            const point = (ttsAudio.duration || 12) * 700; // 70% DJ over old song tail → new song at 70%
+            // Start new song at 50% of DJ speech, fade in
+            setTimeout(() => {
+              playAudio(tr.url);
+              const newA = document.getElementById('audio');
+              if (newA) { newA.volume = 0.5; fadeVol(newA, 0.5, v, () => {}); }
+            }, half);
+            // Kill this temp audio
+            ttsAudio.src = '';
+          }, { once: true });
+          ttsAudio.src = ttsFile;
+          // Also play actual TTS
+          playTts(ttsFile, v, () => {
+            _busy = false;
+            unlockUI();
+          });
         });
-        // Timeout guard: if TTS hangs, play music anyway after 20s
+      } else {
+        // No song playing → start music, DJ voice-overs
+        playAudio(tr.url);
         setTimeout(() => {
-          if (_currentTts && !_currentTts.ended) {
-            _currentTts.pause(); _currentTts = null;
-            _busy = false; unlockUI();
-            playAudio(tr.url);
-          }
-        }, 20000);
-      });
+          fadeVol(a, v, 0.08, () => {
+            playTts(ttsFile, v, () => {
+              fadeVol(a, a.volume, v);
+              _busy = false;
+              unlockUI();
+            });
+          });
+        }, 300);
+      }
     } else {
+      playAudio(tr.url);
       _busy = false;
       unlockUI();
-      playAudio(tr.url);
     }
   } else {
     // Plan 2: circuit breaker — don't call AI again if search keeps failing
@@ -287,6 +335,73 @@ function fadeVol(a, from, to, onDone) {
     a.volume = Math.max(to, Math.min(from, cur));
     if (s >= steps) { clearInterval(t); a.volume = to; if (onDone) onDone(); }
   }, dur / steps);
+}
+
+// ── V2.8 Background Storyteller ──
+let _pendingStory = null;
+let _storyTriggered = false;
+
+// Called after playAudio: start async story generation
+async function startBackgroundStory(trackLabel) {
+  _pendingStory = null;
+  _storyTriggered = false;
+  if (!trackLabel || _failStreak >= MAX_FAIL_STREAK) { console.log('[story] skipped (breaker)'); return; }
+  console.log('[story] Fetching story for:', trackLabel);
+
+  // Collect 2-3 lyric lines as inspiration
+  let lyricSnippet = '';
+  if (_lyricLines && _lyricLines.length > 3) {
+    const picks = [];
+    for (let i = 0; i < 3; i++) {
+      const idx = Math.floor(Math.random() * _lyricLines.length);
+      if (!picks.includes(idx)) picks.push(idx);
+    }
+    lyricSnippet = picks.sort((a,b)=>a-b).map(i => _lyricLines[i].text).join(' / ');
+  }
+
+  try {
+    const res = await window.claudio.tellStory(trackLabel, lyricSnippet);
+    if (res?.ok && res?.story) {
+      _pendingStory = res;
+      console.log('[story] Ready:', res.story.substring(0, 50));
+    } else {
+      console.log('[story] Failed:', res?.error || 'no story');
+    }
+  } catch (e) { console.log('[story] Error:', e.message); }
+}
+
+// Called from timeupdate at ~50%: output story segments synced to speech
+function checkMidStory() {
+  if (_storyTriggered || !_pendingStory || _busy) { return; }
+  console.log('[story] Mid-song trigger! Outputting story...');
+  _storyTriggered = true;
+
+  const { story, tts } = _pendingStory;
+  const segments = story
+    .split(/\n|。/)
+    .map(s => s.trim())
+    .filter(s => s.length > 2);
+
+  if (!segments.length) return;
+
+  // Show segments one by one, synced to estimated speech time (~4 chars/sec for Chinese TTS)
+  let idx = 0;
+  function showNext() {
+    if (idx < segments.length) {
+      showChat(segments[idx], false);
+      const delay = Math.max(segments[idx].length * 250, 2000); // ~4 chars/sec → 250ms/char
+      idx++;
+      setTimeout(showNext, delay);
+    }
+  }
+  showNext();
+
+  // TTS playback
+  if (tts && tts.startsWith('data:')) {
+    const a = document.getElementById('audio');
+    const v = a ? a.volume : 1;
+    playTts(tts, v);
+  }
 }
 
 // ── Easter egg: command interception ──
@@ -346,6 +461,18 @@ function initChat() {
     const m=input.value.trim();if(!m)return;input.value='';
     chatMessages.push({role:'user',content:m,time:fmtNow()});renderChat();
     if (checkEasterEgg(m)) return;
+    // V2.8: manual story trigger
+    if (/讲讲这首|说说这歌|介绍.*歌/.test(m)) {
+      if (_pendingStory?.story) {
+        checkMidStory();
+      } else {
+        const label = ($('#np-title').textContent||'') + ' - ' + ($('#np-artist').textContent||'');
+        startBackgroundStory(label).then(() => {
+          setTimeout(() => { if (_pendingStory?.story) checkMidStory(); }, 2000);
+        });
+      }
+      input.value=''; return;
+    }
     fetchAI(m,'');
   });
   input.addEventListener('keydown',e=>{if(e.key==='Enter')btn.click();});

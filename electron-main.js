@@ -193,6 +193,41 @@ function createWindow() {
     }
   });
 
+  // ── V2.8 Storyteller ──
+  const { buildStoryPrompt, buildSimplePrompt } = require('./src/core/storyteller');
+  ipcMain.handle('story:tell', async (_event, trackLabel, lyricSnippet) => {
+    try {
+      console.log('[story] Main process generating story for:', trackLabel);
+      const hour = new Date().getHours();
+      const prompt = buildStoryPrompt(trackLabel, { hour, lyricSnippet });
+      const { askDeepSeek } = require('./src/api/deepseek');
+      const { synthesize } = require('./src/api/tts');
+
+      // Call DeepSeek with storytelling prompt
+      const result = await askDeepSeek(
+        '你是深夜电台 DJ。输出 JSON: {"dj_speech": "口播内容", "action_type": "chat_only", "search_query": null}',
+        prompt,
+        { temperature: 0.85, maxTokens: 512 }
+      );
+      const story = result.dj_speech || result.speech || '';
+
+      // Generate TTS
+      let tts = null;
+      if (story) {
+        try {
+          const path = await synthesize(story);
+          if (path) tts = 'data:audio/mp3;base64,' + require('fs').readFileSync(path).toString('base64');
+        } catch {}
+      }
+
+      console.log('[story] Generated:', story ? story.substring(0, 40) : '(empty)');
+      return { ok: true, story, tts };
+    } catch (e) {
+      console.log('[story] Failed:', e.message);
+      return { ok: false, story: '', tts: null };
+    }
+  });
+
   // ── Verify login status on startup ──
   const { getLoginStatus } = require('./src/api/netease');
   getLoginStatus().then(profile => {

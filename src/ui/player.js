@@ -190,7 +190,12 @@ function playAudio(url) {
   const a = $('#audio'); a.src = url; setPlayerState('ready');
   a.play().catch(()=>{});
   _busy = false;
+  const label = $('#np-title').textContent + ' - ' + $('#np-artist').textContent;
   addHistory($('#np-title').textContent, $('#np-artist').textContent);
+  // V2.8: start background story generation (async, non-blocking)
+  if (typeof startBackgroundStory === 'function') {
+    startBackgroundStory(label);
+  }
 }
 
 function initAudio() {
@@ -217,6 +222,10 @@ function initAudio() {
     }
     // Lyric highlight
     updateLyricHighlight(a.currentTime);
+    // V2.8: Mid-song story check (~40-65% of song, wider window)
+    if (a.duration && a.currentTime > a.duration * 0.4 && a.currentTime < a.duration * 0.65 && !_busy) {
+      if (typeof checkMidStory === 'function') checkMidStory();
+    }
     // Pre-fetch at 10s remaining — let refill/fetchAI handle the _busy lock
     if (a.duration && a.duration-a.currentTime < 10 && !_busy) { refill(); }
     // Seek-to-end → skip

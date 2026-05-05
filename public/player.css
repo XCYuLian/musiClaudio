@@ -688,6 +688,30 @@ html, body {
 .input-action:disabled { opacity: 0.2; cursor: default; }
 
 /* ═══════════════════════════════════════════════════════
+   DJ VOLUME
+   ═══════════════════════════════════════════════════════ */
+#dj-vol-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 16px 8px; flex-shrink: 0;
+}
+.dj-vol-label {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 9px; font-weight: 700; letter-spacing: 2px;
+  color: #b388ff55; white-space: nowrap;
+}
+#dj-vol-slider {
+  flex: 1; height: 2px;
+  -webkit-appearance: none; appearance: none;
+  background: #b388ff22; border-radius: 1px;
+  outline: none; cursor: pointer;
+}
+#dj-vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 10px; height: 10px;
+  border-radius: 50%; background: #b388ff;
+  box-shadow: 0 0 6px rgba(179,136,255,0.4);
+}
+
+/* ═══════════════════════════════════════════════════════
    FOOTER
    ═══════════════════════════════════════════════════════ */
 #footer {
