@@ -81,9 +81,21 @@ async function handleMusic(query) {
 
 // ── Chat pipeline ──
 async function handleChat(input, intent = 'chat') {
+  // Pre-search for auto-refill: give AI real songs to pick from
+  let preSearchResults = '';
+  if (intent === 'auto' || intent === 'chat') {
+    try {
+      const tags = ['City Pop','Neo-Soul','Jazz Fusion','Dream Pop','Trip-Hop','Bossa Nova','Chillwave'];
+      const t1 = tags[Math.floor(Math.random()*tags.length)];
+      const t2 = tags[Math.floor(Math.random()*tags.length)];
+      const r1 = await ncm.search(t1, 4);
+      const r2 = await ncm.search(t2, 4);
+      preSearchResults = [...r1, ...r2].slice(0, 6).map((t,i) => `${i+1}. ${t.label}`).join('\n');
+    } catch {}
+  }
   const s = state.getState();
   const { systemPrompt, userMessage } = await buildContext({
-    userInput: input, state: s, executionTrace: 'chat', intent,
+    userInput: input, state: s, executionTrace: 'chat', intent, preSearchResults,
   });
   const result = await askDeepSeek(systemPrompt, userMessage);
   const speech = result.dj_speech || result.speech || result.monologue || result.say || '';
@@ -129,11 +141,17 @@ function filterRepeats(tracks) {
     const filtered = tracks.filter(t => {
       const label = (t.label || t.name || '').toLowerCase().trim();
       const artist = (t.artists || '').toLowerCase().trim();
-      if (recentTracks.has(label)) return false;
-      if (artist && artist.length >= 3 && [...recentArtists].some(x => x.length >= 3 && (artist.includes(x) || x.includes(artist)))) return false;
+      if (recentTracks.has(label)) { console.log(`[router:filter] BLOCKED exact: ${label}`); return false; }
+      if (artist && artist.length >= 3 && [...recentArtists].some(x => x.length >= 3 && (artist.includes(x) || x.includes(artist)))) {
+        console.log(`[router:filter] BLOCKED artist: ${artist}`); return false;
+      }
       return true;
     });
-    if (!filtered.length && tracks.length) return [tracks[0]];
+    console.log(`[router:filter] Input: ${tracks.length}, Output: ${filtered.length}`);
+    if (!filtered.length && tracks.length) {
+      console.log('[router:filter] All filtered — rejecting, let caller refill');
+      return [];
+    }
     return filtered;
   } catch { return tracks; }
 }

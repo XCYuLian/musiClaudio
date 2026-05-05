@@ -2,6 +2,7 @@
  * Claudio.fm — Cyberpunk Retro-Futuristic UI
  * Neon purple-green palette, monospace fonts, glow effects
  */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
 /* ═══════════════════════════════════════════════════════
    RESET & BASE
@@ -148,19 +149,32 @@ html, body {
    ═══════════════════════════════════════════════════════ */
 /* ═══ STATUS TICKER ═══ */
 #status-ticker {
-  height: 20px; overflow: hidden;
-  background: #0a0a0f;
-  border-bottom: 1px solid #b388ff15;
+  height: 22px; overflow: hidden;
+  background: linear-gradient(90deg, rgba(168,85,247,0) 0%, rgba(168,85,247,0.08) 50%, rgba(168,85,247,0) 100%);
+  background-size: 200% 100%;
+  animation: flow 4s linear infinite;
   display: flex; align-items: center;
   padding: 0 12px;
+  -webkit-app-region: drag;
 }
 #ticker-text {
   display: inline-block;
   font-family: 'Consolas', 'Courier New', monospace;
-  font-size: 10px; font-weight: 600; letter-spacing: 1.5px;
-  color: #b388ff; white-space: nowrap;
+  font-size: 10px; font-weight: 500; letter-spacing: 1px;
+  color: rgba(168,85,247,0.5); white-space: nowrap;
   padding-left: 100%;
-  animation: ticker-scroll 16s linear infinite;
+  -webkit-app-region: no-drag;
+  animation: ticker-flow 20s linear infinite;
+}
+@keyframes flow {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+@keyframes ticker-flow {
+  0%   { transform: translateX(0); opacity: 0; }
+  5%   { opacity: 0.5; }
+  95%  { opacity: 0.5; }
+  100% { transform: translateX(-100%); opacity: 0; }
 }
 @keyframes ticker-scroll {
   0%   { transform: translateX(0); }
@@ -169,13 +183,15 @@ html, body {
 
 #header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 16px 8px; flex-shrink: 0;
-  border-bottom: 1px solid #b388ff22;
+  height: 50px; padding: 0 24px; flex-shrink: 0;
+  border-bottom: 1px solid #b388ff12;
   -webkit-app-region: drag;
 }
-#header button,
-#header .win-dots,
-#header .btn-ghost {
+#header .logo,
+#header .header-right,
+#header .btn-ghost,
+#header .win-dot,
+#header .user-badge {
   -webkit-app-region: no-drag;
 }
 .logo {
@@ -183,21 +199,21 @@ html, body {
   color: #b388ff;
   font-family: 'Consolas', 'Courier New', monospace;
   text-shadow: 0 0 12px rgba(179,136,255,0.5);
-  -webkit-app-region: no-drag;
   cursor: pointer; user-select: none;
+  margin-right: 12px; flex-shrink: 0;
 }
 .btn-ghost {
-  border: 1px solid #b388ff33; background: transparent;
-  color: #b388ffcc; font-family: 'Consolas', 'Courier New', monospace;
-  font-size: 10px; font-weight: 700;
-  letter-spacing: 2px; padding: 5px 10px; cursor: pointer;
+  border: 1px solid #b388ff22; background: transparent;
+  color: #b388ff88; font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; padding: 4px 10px; cursor: pointer;
+  border-radius: 999px;
   transition: all .15s; white-space: nowrap;
 }
 .btn-ghost:hover {
-  background: #b388ff12; border-color: #b388ff88;
-  box-shadow: 0 0 8px rgba(179,136,255,0.15); color: #b388ff;
+  background: #b388ff10; border-color: #b388ff66; color: #b388ff;
 }
-.header-right { gap: 6px; }
+.header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
 /* ═══════════════════════════════════════════════════════
    CLOCK
@@ -205,18 +221,24 @@ html, body {
 #clock-area {
   text-align: center; padding: 22px 16px 14px; flex-shrink: 0;
   position: relative; z-index: 1;
+  overflow: hidden;
+}
+.data-drift-layer {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  z-index: 0; pointer-events: none;
 }
 .clock-digital {
-  font-size: 58px; font-weight: 400; letter-spacing: 6px;
+  font-size: 58px; font-weight: 400; letter-spacing: 8px;
   color: #e0e0e8;
   position: relative; z-index: 1;
   font-family: 'VT323', 'Consolas', 'Courier New', monospace;
   text-shadow:
     0 0 2px rgba(200,200,220,0.9),
-    0 0 12px rgba(179,136,255,0.5),
-    0 0 30px rgba(179,136,255,0.25);
+    0 0 16px rgba(179,136,255,0.6),
+    0 0 40px rgba(179,136,255,0.3),
+    0 0 80px rgba(179,136,255,0.12);
   line-height: 1;
-  animation: clock-breath 4s ease-in-out infinite;
+  animation: clock-breath 3s ease-in-out infinite;
 }
 /* Responsive: shrink clock on short windows */
 @media (max-height: 680px) {
@@ -229,11 +251,12 @@ html, body {
   .on-air { margin-top: 2px; font-size: 9px; }
 }
 @keyframes clock-breath {
-  0%, 100% { text-shadow: 0 0 2px rgba(200,200,220,0.9), 0 0 12px rgba(179,136,255,0.5), 0 0 30px rgba(179,136,255,0.25); }
-  50% { text-shadow: 0 0 2px rgba(200,200,220,0.9), 0 0 24px rgba(179,136,255,0.7), 0 0 48px rgba(179,136,255,0.35); }
+  0%, 100% { text-shadow: 0 0 2px rgba(200,200,220,0.9), 0 0 16px rgba(179,136,255,0.6), 0 0 40px rgba(179,136,255,0.3); }
+  50% { text-shadow: 0 0 2px rgba(200,200,220,0.9), 0 0 32px rgba(179,136,255,0.9), 0 0 64px rgba(179,136,255,0.5); }
 }
 .clock-date {
-  font-size: 10px; font-weight: 500; letter-spacing: 1.5px; color: #555;
+  font-family: 'Press Start 2P', 'Courier New', monospace;
+  font-size: 7px; font-weight: 400; letter-spacing: 1px; color: #b388ff88;
   margin-top: 4px;
   text-transform: uppercase;
 }
@@ -315,14 +338,16 @@ html, body {
   width: 34px; height: 34px; border: 1px solid #2a2a3a;
   background: transparent; color: #888; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
+  border-radius: 999px;
   transition: all .2s;
 }
 .ctrl-icon:hover { color: #b388ff; border-color: #b388ff55; }
 .ctrl-icon:disabled { opacity: 0.2; cursor: default; }
 .ctrl-icon.play-main {
-  width: 44px; height: 44px;
+  width: 48px; height: 48px;
   border-color: #b388ff55; background: #b388ff10;
   color: #b388ff;
+  border-radius: 999px;
   box-shadow: 0 0 12px rgba(179,136,255,0.3);
 }
 .ctrl-icon.play-main:hover:not(:disabled) {
@@ -389,6 +414,12 @@ html, body {
   font-family: 'Consolas', 'Courier New', monospace;
 }
 /* Volume */
+#visualizer-bar {
+  width: 100%; height: 48px;
+  margin-top: 8px;
+  border-radius: 6px;
+  opacity: 0.6;
+}
 .volume-wrap {
   display: flex; align-items: center; gap: 8px; margin-top: 8px;
 }
@@ -548,9 +579,12 @@ html, body {
 }
 /* ── Bubble ── */
 .msg-bubble {
-  max-width: 85%; padding: 10px 14px;
+  max-width: 85%; padding: 12px 18px;
   font-size: 13px; line-height: 1.6;
   word-break: break-word;
+  border-radius: 20px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 .chat-msg.user .msg-bubble {
   background: rgba(179,136,255,0.08);
@@ -675,22 +709,61 @@ html, body {
 /* ═══════════════════════════════════════════════════════
    HEADER RIGHT — Settings + Window controls inline
    ═══════════════════════════════════════════════════════ */
-.header-right {
-  display: flex; align-items: center; gap: 8px;
-}
+/* ── Window Dots (hardware control circles) ── */
 .win-dots {
-  display: flex; gap: 2px; margin-left: 4px;
+  display: flex !important; gap: 8px; margin-left: 8px;
+  align-items: center; flex-shrink: 0;
+  overflow: visible;
 }
-.win-dots button {
-  width: 26px; height: 26px; border: 1px solid transparent;
-  background: transparent; color: #666;
-  font-family: 'Consolas', 'Courier New', monospace;
-  font-size: 12px; font-weight: 700; cursor: pointer;
+.win-dot {
   display: flex; align-items: center; justify-content: center;
-  transition: all .15s;
+  width: 20px; min-width: 20px; height: 20px; flex-shrink: 0;
+  border-radius: 50%;
+  border: 1.5px solid #b388ff33;
+  background: rgba(255,255,255,0.05);
+  color: #b388ff55;
+  font-size: 12px; font-weight: 700; line-height: 1;
+  cursor: pointer;
+  position: relative;
+  transition: all .25s ease;
+  user-select: none;
 }
-.win-dots button:hover { color: #b388ff; border-color: #b388ff44; }
-.win-dots #btn-close:hover { color: #ff6666; border-color: #ff666644; }
+.win-dot::after {
+  content: ''; position: absolute;
+  top: -10px; left: -10px; right: -10px; bottom: -10px;
+}
+.win-dot:hover {
+  color: #b388ff;
+  border-color: #b388ff;
+  background: rgba(179,136,255,0.12);
+  box-shadow: 0 0 12px rgba(179,136,255,0.6);
+}
+.win-dot.close {
+  border-color: #ff4d4f55;
+  color: #ff4d4f88;
+  background: rgba(255,77,79,0.06);
+}
+.win-dot.close:hover {
+  background: #ff4d4f;
+  border-color: #ff4d4f;
+  color: #fff;
+  box-shadow: 0 0 20px rgba(255,77,79,0.8);
+  animation: close-pulse 0.6s ease-in-out infinite;
+}
+@keyframes close-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(255,77,79,0.8); }
+  50% { box-shadow: 0 0 36px rgba(255,77,79,1), 0 0 60px rgba(255,77,79,0.4); }
+}
+.win-dot.close {
+  border-color: #7a2a2a66;
+  color: #7a2a2a88;
+}
+.win-dot.close:hover {
+  background: #ff4d4f;
+  border-color: #ff4d4f;
+  color: #fff;
+  box-shadow: 0 0 14px rgba(255,77,79,0.6);
+}
 
 /* ═══════════════════════════════════════════════════════
    LOGIN OVERLAY — intercepts before main UI
@@ -877,11 +950,12 @@ html, body {
 }
 
 .btn-import {
-  width: 100%; padding: 10px; margin-top: 4px;
+  width: 100%; padding: 10px 20px; margin-top: 4px;
   border: 1px solid #69f0ae44; background: #69f0ae08;
   color: #69f0ae; cursor: pointer;
   font-family: 'Consolas', 'Courier New', monospace;
   font-size: 11px; font-weight: 700; letter-spacing: 2px;
+  border-radius: 999px;
   transition: all .2s;
 }
 .btn-import:hover:not(:disabled) {
@@ -903,29 +977,46 @@ html, body {
   box-shadow: 0 0 12px rgba(179,136,255,0.2);
 }
 
-/* ── User Badge ── */
+/* ── User Badge (LIVE indicator) ── */
 .user-badge {
-  font-size: 11px; font-weight: 600; color: #69f0ae;
-  padding: 3px 10px;
-  border: 1px solid #69f0ae44;
-  border-radius: 12px;
-  cursor: pointer;
+  display: flex !important; flex-direction: row !important;
+  align-items: center; gap: 7px;
+  white-space: nowrap !important;
+  width: auto; padding: 5px 12px;
+  gap: 5px; padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid #a855f722;
+  background: rgba(168,85,247,0.05);
+  cursor: pointer; user-select: none;
+  -webkit-app-region: no-drag;
+  animation: badge-breathe 4s ease-in-out infinite;
   transition: all .2s;
-  white-space: nowrap;
-  user-select: none;
-  -webkit-app-region: no-drag; /* prevent header drag from eating clicks */
-  position: relative; z-index: 10;
 }
-.user-badge:hover {
-  background: #69f0ae15;
-  box-shadow: 0 0 10px rgba(105,240,174,0.3);
+.user-badge:hover { border-color: #a855f755; background: rgba(168,85,247,0.10); }
+@keyframes badge-breathe {
+  0%, 100% { background: rgba(168,85,247,0.05); }
+  50% { background: rgba(168,85,247,0.10); }
 }
-.user-badge.logged-in {
-  color: #b388ff;
-  border-color: #b388ff55;
+.live-dot {
+  display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+  background: #69f0ae;
+  box-shadow: 0 0 6px rgba(105,240,174,0.6);
+  animation: breathe 2s ease-in-out infinite;
 }
-.user-badge.logged-in:hover {
-  box-shadow: 0 0 10px rgba(179,136,255,0.3);
+.live-text {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 13px; font-weight: 700; letter-spacing: 2px;
+  color: #a855f7;
+}
+/* Guest state */
+.user-badge.guest { animation: none; }
+.user-badge.guest .live-dot { background: #555; box-shadow: none; animation: none; }
+.user-badge.guest .live-text { color: #555; }
+.user-badge.guest::after {
+  content: 'LOGIN';
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 11px; font-weight: 700; letter-spacing: 2px;
+  color: #a855f7;
 }
 
 /* ── QR Login Modal ── */

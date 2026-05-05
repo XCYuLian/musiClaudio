@@ -39,21 +39,23 @@
   <header id="header">
     <span class="logo">Claudio</span>
     <div class="header-right">
-      <button id="btn-theme" class="btn-ghost">DARK</button>
+      <span id="user-badge" class="user-badge" title="点击登录网易云">
+        <span class="live-dot"></span><span class="live-text">LIVE</span>
+      </span>
       <button id="btn-lang" class="btn-ghost">中文</button>
-      <button id="btn-favs" class="btn-ghost" title="收藏列表">❤️</button>
-      <span id="user-badge" class="user-badge" title="点击登录网易云">🎵 游客</span>
+      <button id="btn-favs" class="btn-ghost" title="收藏">❤️</button>
       <button id="btn-settings" class="btn-ghost" title="Settings">SET</button>
       <span class="win-dots">
-        <button id="btn-min" title="Minimize">—</button>
-        <button id="btn-max" title="Maximize">□</button>
-        <button id="btn-close" title="Close">✕</button>
+        <span id="btn-min" class="win-dot" title="Minimize">−</span>
+        <span id="btn-max" class="win-dot" title="Maximize">□</span>
+        <span id="btn-close" class="win-dot close" title="Close">×</span>
       </span>
     </div>
   </header>
 
   <!-- ═══ CLOCK ═══ -->
   <section id="clock-area">
+    <canvas class="data-drift-layer" id="data-drift"></canvas>
     <div class="clock-digital" id="clock-time">00:00</div>
     <div class="clock-date" id="clock-date">Sunday 00 JAN 0000</div>
     <div class="on-air">
@@ -117,6 +119,8 @@
       <input type="range" id="volume-slider" class="volume-slider" min="0" max="100" value="80">
       <span class="vol-icon">+</span>
     </div>
+    <!-- Spectrum Visualizer -->
+    <canvas id="visualizer-bar"></canvas>
   </section>
 
   <!-- ═══ MIDDLE WRAP (Queue + AI share flex space) ═══ -->

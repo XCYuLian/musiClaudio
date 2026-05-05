@@ -19,9 +19,9 @@ let mainWindow = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 420,
-    height: 780,
-    minWidth: 380,
+    width: 440,
+    height: 900,
+    minWidth: 420,
     minHeight: 680,
     frame: false,
     transparent: false,
@@ -198,7 +198,7 @@ function createWindow() {
   getLoginStatus().then(profile => {
     if (profile?.nickname) {
       state.setPref('netease_nickname', profile.nickname);
-      if (profile.nickname === '秋萝伴点星') {
+      if (profile.nickname === '秋夢伴点星') {
         console.log('[auth] 欢迎台长归位，无限 Token 权限已自动激活。');
       }
     }
@@ -209,7 +209,8 @@ function createWindow() {
 
   ipcMain.handle('auth:checkLogin', async () => {
     const cookie = state.getPref('netease_cookie') || '';
-    return { loggedIn: !!cookie };
+    const nickname = state.getPref('netease_nickname') || '';
+    return { loggedIn: !!cookie, nickname };
   });
 
   ipcMain.handle('auth:getQrCode', async () => {
@@ -231,7 +232,7 @@ function createWindow() {
         const profile = await getLoginStatus().catch(() => null);
         if (profile?.userId) {
           state.setPref('netease_nickname', profile.nickname || '');
-          if (profile.nickname === '秋萝伴点星') {
+          if (profile.nickname === '秋夢伴点星') {
             console.log('[auth] 欢迎台长归位，无限 Token 权限已自动激活。');
           }
           const ids = await getLikedSongs(profile.userId, 10);

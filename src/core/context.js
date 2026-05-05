@@ -45,6 +45,7 @@ async function buildContext(opts = {}) {
   const {
     userInput = '',
     toolResult = '',
+    preSearchResults = '',  // pre-searched Netease results → AI picks from real songs
     executionTrace = '',
     intent = 'chat',
     state = null,
@@ -61,13 +62,21 @@ async function buildContext(opts = {}) {
   const taste = await loadMarkdown(path.join(USER_DIR, 'taste.md'));
   const routines = await loadMarkdown(path.join(USER_DIR, 'routines.md'));
   const moodRules = await loadMarkdown(path.join(USER_DIR, 'mood-rules.md'));
-  // Load playlist summary (sample, not full 1000 — too large for context)
+  // Load playlist — extract artists as exploration pool + sample for context
   let playlistSample = [];
+  let playlistArtists = [];
   try {
     const raw = loadJSON(paths.PLAYLIST_FILE);
-    if (Array.isArray(raw)) playlistSample = raw.slice(0, 200); // first 200 as sample
+    if (Array.isArray(raw)) playlistSample = raw.slice(0, 200);
     else if (raw?.liked_songs) playlistSample = raw.liked_songs.slice(0, 200);
     else playlistSample = Object.values(raw).flat().slice(0, 200);
+    // Extract unique artists from full playlist as exploration pool
+    const artistSet = new Set();
+    (Array.isArray(raw) ? raw : []).forEach(entry => {
+      const dash = (entry || '').indexOf(' - ');
+      if (dash > 0) artistSet.add(entry.slice(0, dash).trim());
+    });
+    playlistArtists = [...artistSet];
   } catch { playlistSample = ['(no playlist loaded)']; }
 
   // ── Block 3: Environment Injection ──
@@ -85,8 +94,11 @@ async function buildContext(opts = {}) {
   let memoryBlock = 'No prior state';
   if (state) {
     const parts = [];
-    if (state.plays?.length)
-      parts.push(`BLACKLIST — These were recently played. You are FORBIDDEN from recommending these artists again today: ${state.plays.slice(-10).map(p => p.track).join(' | ')}`);
+    if (state.plays?.length) {
+      const blacklistTracks = state.plays.slice(-30).map(p => p.track).join(' | ');
+      parts.push(`⏳ Recently played (avoid these for now — they'll be available again tomorrow):\n${blacklistTracks}`);
+      console.log('[context] BLACKLIST sent to AI:', blacklistTracks.substring(0, 200));
+    }
     if (state.plan)
       parts.push(`Today's plan: ${state.plan}`);
     if (state.prefs)
@@ -114,7 +126,7 @@ async function buildContext(opts = {}) {
     `## CURRENT TIME (authoritative — do NOT guess or override)\n${currentTimeBlock}`,
 
     (dna
-      ? `${dna}\n\n---\n## IDENTITY LOCK\nYou KNOW the user's taste via the DNA above. Their playlist tracks are OFF-LIMITS for recommendations — find NEW songs matching their taste profile. NEVER recommend songs already in their playlist unless explicitly asked.`
+      ? `${dna}\n\n---\n## IDENTITY LOCK\nDNA above is your taste compass. It tells you WHAT GENRES to explore, not WHO to play. You must discover specific artists yourself. The ⏳ recently-played list tells you who to temporarily avoid.`
       : '## IDENTITY LOCK\nNo DNA profile loaded yet. Ask the user to import their playlist. DO NOT pretend to know their taste — be honest that no data is available.'
     ),
 
@@ -176,14 +188,18 @@ async function buildContext(opts = {}) {
     'CRITICAL: Use the CURRENT TIME block above as the authoritative time reference.',
     '',
     '## EXPLORATION BIAS (randomized each request — avoid repetition)',
-    `${getExplorationBias()}`,
+    `${getExplorationBias(playlistArtists)}`,
     '',
+    (preSearchResults
+      ? `## 🎵 网易云可播曲目（已搜索验证，真实存在，从中挑选一首）\n\`\`\`\n${preSearchResults}\n\`\`\`\n⚠️ 你必须从上面的列表里挑一首，把它的'歌手 歌名'原样复制为 search_query。例如列表里有'大貫妙子 - 都会'，就输出 search_query:'大貫妙子 都会'。绝对不要自己编歌名。`
+      : ''
+    ),
     '## DISCOVERY + DIVERSITY RULES',
-    '- 90% of recs: songs NOT in the playlist. 10% max: comfort picks.',
+    '- 70% fresh discoveries (new artists, new genres) + 30% familiar favorites (only if NOT in recently-played list).',
     '- 50% MUST be Chinese/Asian music (华语/粤语/日韩). Alternate languages.',
-    '- NEVER repeat same song or artist twice in a row.',
+    '- Avoid the ⏳ recently-played list — those will be available again tomorrow.',
     '- Vary genres AND languages each time.',
-    'For new tracks: "为你挖掘了一首宝藏"。For familiar: "这首来自你的歌单"。',
+    'For new discoveries: "为你挖掘了一首宝藏"。For familiar: "好久没听这首了"。',
     '',
     'Respond ONLY with the JSON object. No other output.',
   ].filter(b => b !== '').join('\n');
@@ -207,6 +223,29 @@ const NICHE_GENRES = [
   'Chillwave', 'Synthwave', 'Indie Folk', 'Math Rock',
   'Afrobeat', 'Latin Jazz', 'Funk/Soul', 'Psychedelic Rock',
 ];
+// Artist map: give AI concrete names to explore, not just abstract genres
+const GENRE_ARTIST_MAP = {
+  'Lo-fi Hip Hop': 'Nujabes, J Dilla, DJ Okawari, 丁世光, 国蛋, 李权哲, 9m88, C-Block',
+  'Vaporwave': '2814, 猫 シ Corp, Yung Bae, Night Tempo, 银河骑士, 传琦SAMA, 李老板, 音速行星',
+  'City Pop': 'Mariya Takeuchi, Tatsuro Yamashita, Anri, 大貫妙子, 杏里, 当山瞳, 具岛直子, 竹内美宥',
+  '采样艺术': 'The Avalanches, DJ Shadow, Madlib, Knxwledge, 小老虎, 也是福, Itsogoo, 精气神',
+  'Shoegaze': 'My Bloody Valentine, Slowdive, Alcest, 缺省Default, 卧轨的火车, 晕盖Gatsby, 沉默演讲, 荒诞斯坦',
+  'Dream Pop': 'Beach House, Cigarettes After Sex, Alvvays, 动物园钉子户, 结冰水, 和平和浪, 浪味仙贝, 表情银行',
+  'Post-Rock 后摇': 'Sigur Rós, Mogwai, MONO, 惘闻, 沼泽, 文雀, 琥珀, 时过夏末, 甜梅号, 穿越稜镜',
+  'Neo-Soul': 'Erykah Badu, D\'Angelo, Anderson .Paak, 丁世光, 余佳运, 吕彦良, 地磁卡, 阿克江Akin, 陶喆, 方大同',
+  'Trip-Hop': 'Massive Attack, Portishead, Tricky, Morcheeba, 超级市场, 龙宽九段, 星期三旅行, 虎子',
+  'Ambient Techno': 'Aphex Twin, Boards of Canada, Susumu Yokota, 白水, FM3, 窦唯(暮良文王), 王凡, 林强',
+  'Jazz Fusion': 'Casiopea, T-Square, Masayoshi Takanaka, Hiromi, 顾忠山, 秦四风, J3 Trio, 红节奏, TTechmak',
+  'Bossa Nova': 'Antonio Carlos Jobim, João Gilberto, Lisa Ono, 小野丽莎, 王若琳, 彭靖惠, 叶树茵, Joanna Wang',
+  'Chillwave': 'Washed Out, Toro Y Moi, Neon Indian, 香料SPICE, 卧轨的火车, 白纸扇, 海朋森',
+  'Synthwave': 'Kavinsky, The Midnight, FM-84, 音速行星, 白鲸乐队, 新裤子, 大波浪, 重塑雕像的权利',
+  'Indie Folk': 'Bon Iver, Sufjan Stevens, Iron & Wine, 万能青年旅店, 五条人, 陈鸿宇, 尧十三, 宋冬野, 张玮玮',
+  'Math Rock': 'toe, Tricot, American Football, CHON, 大象体操, LITE, 国足, 话梅鹿, 鬼否, Fayzz',
+  'Afrobeat': 'Fela Kuti, Burna Boy, Wizkid, Antibalas, Tony Allen, Seun Kuti, Ebo Taylor',
+  'Latin Jazz': 'Irakere, Buena Vista Social Club, Tito Puente, Cal Tjader, Ray Barretto, Mongo Santamaria',
+  'Funk/Soul': 'Stevie Wonder, Vulfpeck, Khruangbin, 方大同, 李荣浩, 9m88, 问题总部, 橘子海, 马念先',
+  'Psychedelic Rock': 'Tame Impala, King Gizzard, Khruangbin, 晕盖Gatsby, 鸟撞Birdstriking, 疯医, 海朋森, 脏手指',
+};
 const EXPLORATION_TIPS = [
   '尝试推荐一些小众独立音乐人的作品，避开主流榜单。',
   '今天适合探索 80-90 年代的华语遗珠。',
@@ -217,15 +256,30 @@ const EXPLORATION_TIPS = [
   '尝试推一些不同语言的音乐（法语、西语、韩语）。',
 ];
 
-function getExplorationBias() {
-  const genre = NICHE_GENRES[Math.floor(Math.random() * NICHE_GENRES.length)];
+function getExplorationBias(playlistArtists = []) {
+  const shuffled = [...NICHE_GENRES].sort(() => Math.random() - 0.5);
+  const tag1 = shuffled[0];
+  const tag2 = shuffled[1];
+  // Hardcoded artist pool for genre
+  const artists1 = GENRE_ARTIST_MAP[tag1] || '';
+  const artists2 = GENRE_ARTIST_MAP[tag2] || '';
+  // User's playlist artists — pick 4 random as "similar-to" hints
+  const userPool = playlistArtists.length
+    ? playlistArtists.sort(() => Math.random() - 0.5).slice(0, 4).join(', ')
+    : '';
+  const pick1 = artists1 ? artists1.split(', ').sort(() => Math.random() - 0.5).slice(0, 2).join(', ') : '';
+  const pick2 = artists2 ? artists2.split(', ').sort(() => Math.random() - 0.5).slice(0, 2).join(', ') : '';
   const tip = EXPLORATION_TIPS[Math.floor(Math.random() * EXPLORATION_TIPS.length)];
   const weather = getWeatherHint();
-  return [
-    `🎯 今日探索方向: ${genre}`,
-    `💡 ${tip}`,
-    weather ? `🌤 ${weather}` : '',
-  ].filter(Boolean).join('\n');
+  const parts = [
+    `🎯 本轮强制融合标签: 【${tag1}】+ 【${tag2}】`,
+    `📋 风格参考池: ${[pick1, pick2].filter(Boolean).join(' | ') || '自由发挥'}`,
+  ];
+  if (userPool) parts.push(`🎧 你的歌单里有这些艺人: ${userPool}。找和他们风格相似但不同的新面孔。`);
+  parts.push(`⚠️ 必须推荐同时具备这两个风格元素的歌曲。`);
+  parts.push(`💡 ${tip}`);
+  if (weather) parts.push(`🌤 ${weather}`);
+  return parts.join('\n');
 }
 
 function getWeatherHint() {
@@ -257,7 +311,7 @@ function getLikedSongsHint() {
     const state = require('./state');
     const liked = state.getPref('liked_songs_sample') || '';
     if (!liked) return '';
-    return `### 🎧 网易云心动歌曲 (Reference Anchors)\n你最近收藏了这些歌，说明你偏爱这类风格。请找风格相似但**不同的新声音**，不要重复推荐这些歌：\n${liked}`;
+    return `### ❤️ 红心歌单 (Taste Compass)\n这些是用户收藏的歌，代表了核心品味方向。可以偶尔重温（30%），但更多时候请根据这些歌的**曲风元素**去挖掘新声音（70%）。\n红心列表：\n${liked}`;
   } catch { return ''; }
 }
 

@@ -297,8 +297,10 @@ async function resolveTrack(query) {
   }
 
   // Search, get more results for filtering
-  const results = await search(searchQuery, 15);  // get more results for better matching
+  const results = await search(searchQuery, 15);
   if (!results.length) return null;
+  console.log(`[netease] resolveTrack("${query}"): ${results.length} search results`);
+  if (expectedArtist) console.log(`[netease] Expected artist: "${expectedArtist}"`);
 
   // Step 1: Remove bad versions (DJ, remix, live, etc.)
   let clean = results.filter(r => !isBadVersion(r));

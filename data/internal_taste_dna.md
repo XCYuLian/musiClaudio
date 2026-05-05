@@ -1,6 +1,5 @@
 ## <MANDATORY_USER_DNA>
-<!-- This DNA profile is AUTO-GENERATED from the user's actual playlist data. -->
-<!-- You MUST base ALL music recommendations on this profile. NEVER claim ignorance. -->
+<!-- AUTO-GENERATED taste profile. Genre/mood direction ONLY — no artist names. -->
 
 ### Core Identity
 - **Library size**: 1000 tracks analyzed
@@ -8,28 +7,24 @@
 - **Dominant genres**: hiphop / r&b / jazz / rock / pop / electronic / classical / punk
 - **Emotional profile**: romantic / melancholy / energetic / calm / dark
 
-### Top Artists (by track count)
-- 福来 (39 tracks)
-- 方大同 (36 tracks)
-- Kanye West (33 tracks)
-- 张震岳 (28 tracks)
-- 马赫mood (16 tracks)
-- 蛋堡 (14 tracks)
-- 马思唯 (12 tracks)
-- Kendrick Lamar (10 tracks)
-- 艾热 AIR (10 tracks)
-- 安全着陆 (10 tracks)
+### Genre DNA (use these as your compass)
+- **Hip-Hop/Rap**: heavy presence — boom-bap, conscious rap, 中文说唱, experimental hip-hop
+- **R&B/Soul**: deep presence — neo-soul, alternative r&b, 华语 R&B
+- **Jazz/Fusion**: moderate presence — cool jazz, jazz-hop, instrumental
+- **Rock/Alternative**: moderate presence — indie rock, post-rock, math rock
+- **Electronic**: light presence — ambient, downtempo, idm, lofi
+- **Pop**: light presence — indie pop, dream pop, city pop
+- **Classical/Instrumental**: light presence — piano, orchestral, minimalist
 
 ### Scene Affinity
-- **Morning / Focus**: jazz
-- **Afternoon / Energy**: rock
-- **Evening / Wind-down**: r&b
-- **Late Night / Deep**: electronic
+- **Morning / Focus**: jazz, lofi, instrumental
+- **Afternoon / Energy**: hip-hop, rock, electronic
+- **Evening / Wind-down**: r&b, neo-soul, dream pop
+- **Late Night / Deep**: ambient, downtempo, experimental
 
 ### Constraints
-- The user's taste centers on **hiphop / r&b / jazz / rock / pop / electronic / classical / punk**.
-- Emotional range skews **romantic / melancholy / energetic / calm / dark**.
-- Language preference: **Chinese-dominant**.
-- If unsure, default to the user's top artists before suggesting unfamiliar music.
-- DO NOT claim you "haven't seen the playlist" or "don't know the taste". This DNA is the authoritative source.
+- This DNA defines TASTE DIRECTION, not a playlist. You decide which specific artists to recommend.
+- 70% fresh discoveries from these genres + 30% familiar sounds.
+- Chinese/Asian music should be ~50% of recommendations.
+- DO NOT claim ignorance of the user's taste. These genres are the authority.
 </MANDATORY_USER_DNA>

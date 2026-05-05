@@ -41,30 +41,18 @@ function initFavs() {
   });
 }
 
-// ── Status Ticker: cycle messages every 10s ──
-const TICKER_MSGS = [
-  'Claudio.fm — Personal AI Radio DJ',
-  '🔓 Token 模式: 无限',
-  '🎵 VIP 直连: 无损音质',
-  '🎯 探索模式: 随机小众风格',
-  '🌙 AI DJ 实时守护中',
-  '💜 台长专属 — 秋萝伴点星',
-];
-let _tickerIdx = 0;
+// ── Status Ticker: single static message ──
 function initTicker() {
   const el = $('#ticker-text');
-  if (!el) return;
-  setInterval(() => {
-    _tickerIdx = (_tickerIdx + 1) % TICKER_MSGS.length;
-    el.textContent = TICKER_MSGS[_tickerIdx];
-  }, 10000);
+  if (el) el.textContent = 'Claudio.fm — Personal AI Radio';
 }
 
 // ── Master Init ──
 document.addEventListener('DOMContentLoaded', () => {
-  initClock(); initTicker(); initAudio(); initVolume(); initChat(); initLogoTap(); renderChat(); renderHistory();
+  initClock(); initDataDrift(); initTicker(); initAudio(); initVisualizer(); initVolume(); initChat(); initLogoTap(); renderChat(); renderHistory();
   initSettings(); initFavs();
   $('#btn-min').addEventListener('click',()=>window.claudio.minimize());
+  $('#btn-max').addEventListener('click',()=>window.claudio.maximize());
   $('#btn-close').addEventListener('click',()=>window.claudio.close());
   $('#btn-lang').addEventListener('click',()=>{lang=lang==='en'?'zh':'en';localStorage.setItem('claudio_lang',lang);$('#btn-lang').textContent=lang==='en'?'中文':'EN';updateClock();});
   window.claudio.onBroadcast(data => handleResponse(data));

@@ -196,6 +196,14 @@ Git Bash 的 `TEMP=/tmp` 会导致 electron-builder 跨盘失败。
 | 29 | hourly 漏网烧 Token | cron 回调未检查熔断状态，整点照样调 DeepSeek | hourly 回调首行加熔断检查 |
 | 30 | Cookie 存了但不生效 | `getSongUrl` 优先走 proxy，VIP 用户反而绕过了官方 API | VIP 快速通道：有 cookie → 先调 `song_url_v1`，成功直接返回 |
 | 31 | VIP 拿到歌却被 filter 误杀 | `filterRepeats` 跨会话历史全杀 → tracks=[] → 虚假报错"无音源" | filter 禁止全杀：`!filtered.length && tracks.length → [tracks[0]]` |
+| 32 | 台长 Token 被限 | `isStationMaster()` 写死 `秋萝伴点星`，API 返回 `秋蘿伴点星`，一字不匹配 | 改用 API 返回的真实昵称 |
+| 33 | AI 无视 BLACKLIST 反复推同一艺人 | context.js BLACKLIST 措辞太软 + DNA"default to top artists"指示 AI 回退老歌手 | BLACKLIST→严厉措辞 + DNA 改为 taste direction + 双标签强制融合 |
+| 34 | 红心歌单自循环 | liked_songs_sample 作为"参考锚点"→ AI 理解为"推荐同款" | 改为 taste compass + 70/30 新老比例 |
+| 35 | DNA 永久封杀喜爱歌手 | `If unsure, default to top artists` 导致 AI 反复推同一批人 | DNA 去艺人名字，只保留风格/mood/scene |
+| 36 | V1 起就反复播同一首歌 | 硬兜底 3 处路径从未调 `addPlay`，播放记录永不写入 SQLite，filter 永远拦不住 | 补全 addPlay：熔断路径 + 正常硬兜底 + router 全杀兜底 |
+| 37 | AI 词汇表枯竭 | DeepSeek 华语艺人知识有限，高频请求后必然循环 | 120+ 艺人池注入 prompt + 歌单艺人随机采样 |
+| 38 | filter 拦截后又被放行 | `filterRepeats` 全杀后 `return [tracks[0]]` 把被拦的歌又放回去 | 全杀后返回 `[]`，触发硬兜底而非重播被拦曲 |
+| 39 | 最大化按钮失效 | `favs.js` 只绑了 min/close，漏了 max 的 click 事件 | 补 `$('#btn-max').addEventListener` |
 
 ## 📖 更多文档
 - `docs/v1_context/architecture.md` — V1 架构详解

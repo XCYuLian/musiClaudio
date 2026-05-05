@@ -203,7 +203,7 @@ function getAllPrefs() {
 
 function getState() {
   return {
-    plays: getRecentPlays(20),
+    plays: getRecentPlays24h(50),  // 24h window — don't haunt AI with ancient history
     plan: getTodayPlan(),
     prefs: getAllPrefs(),
   };

@@ -31,7 +31,7 @@ function isStationMaster() {
   try {
     const state = require('../core/state');
     const nickname = state.getPref('netease_nickname') || '';
-    return nickname === '秋萝伴点星';
+    return nickname === '秋夢伴点星';
   } catch { return false; }
 }
 

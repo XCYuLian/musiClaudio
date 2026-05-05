@@ -132,6 +132,59 @@ function initSeek() {
   document.addEventListener('mouseup', () => { if (_dragging) { _dragging = false; track.classList.remove('dragging'); saveState(); } });
 }
 
+// ── Spectrum Visualizer ──
+let _audioCtx = null, _analyser = null, _visAnim = null;
+
+function initVisualizer() {
+  const canvas = $('#visualizer-bar');
+  if (!canvas) return;
+  const a = $('#audio');
+  if (!a) return;
+
+  try {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!_analyser) {
+      _analyser = _audioCtx.createAnalyser();
+      _analyser.fftSize = 128;
+      const source = _audioCtx.createMediaElementSource(a);
+      source.connect(_analyser);
+      _analyser.connect(_audioCtx.destination);
+    }
+    drawVisualizer(canvas);
+  } catch (e) {
+    // MediaElementSource can only be created once per audio element
+    console.log('[viz] already connected or not supported');
+  }
+}
+
+function drawVisualizer(canvas) {
+  if (!_analyser) return;
+  const ctx = canvas.getContext('2d');
+  const bufLen = _analyser.frequencyBinCount;
+  const data = new Uint8Array(bufLen);
+  const W = canvas.width = canvas.offsetWidth || 300;
+  const H = canvas.height = canvas.offsetHeight || 48;
+  const barW = W / 48;  // 48 bars
+
+  function draw() {
+    _visAnim = requestAnimationFrame(draw);
+    _analyser.getByteFrequencyData(data);
+    ctx.clearRect(0, 0, W, H);
+    for (let i = 0; i < 48; i++) {
+      const v = data[Math.floor(i * bufLen / 48)] / 255;
+      const h = v * H * 0.9;
+      const x = i * barW;
+      const grad = ctx.createLinearGradient(x, H, x, H - h);
+      grad.addColorStop(0, 'rgba(105,240,174,0.3)');
+      grad.addColorStop(1, 'rgba(105,240,174,0.7)');
+      ctx.fillStyle = grad;
+      ctx.globalAlpha = 0.5 + v * 0.5;
+      ctx.fillRect(x + 1, H - h, barW - 2, h);
+    }
+  }
+  draw();
+}
+
 // ── Audio ──
 function playAudio(url) {
   const a = $('#audio'); a.src = url; setPlayerState('ready');
@@ -257,6 +310,40 @@ function loadState() {
     updatePlayerInfo(s.title, s.artist);
     const a=$('#audio');a.src=s.url;a.currentTime=s.position||0;setPlayerState('ready');a.play().catch(()=>{});
   } catch {}
+}
+
+// ── Data Drift — floating status labels in clock background ──
+const DRIFT_LABELS = ['TOKEN:∞', 'MODE:NICHE', 'VIP:LOSSLESS', 'SEARCH:ON', 'DNA:70/30', 'STATUS:LIVE'];
+let _driftParticles = [];
+
+function initDataDrift() {
+  const canvas = $('#data-drift');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width = canvas.offsetWidth;
+  const H = canvas.height = canvas.offsetHeight;
+  // Create floating label particles
+  _driftParticles = DRIFT_LABELS.map((text, i) => ({
+    text, x: Math.random() * W, y: 30 + Math.random() * (H - 60),
+    vx: 0.15 + Math.random() * 0.3, vy: 0.05 + Math.random() * 0.1,
+  }));
+
+  function drift() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = '10px Consolas, monospace';
+    ctx.textBaseline = 'middle';
+    _driftParticles.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x > W + 40) p.x = -80;
+      if (p.x < -80) p.x = W + 40;
+      if (p.y > H) p.y = 0;
+      if (p.y < 0) p.y = H;
+      ctx.fillStyle = 'rgba(168,85,247,0.35)';
+      ctx.fillText(p.text, p.x, p.y);
+    });
+    requestAnimationFrame(drift);
+  }
+  drift();
 }
 
 // ── Clock ──

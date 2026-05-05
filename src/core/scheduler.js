@@ -19,23 +19,36 @@ const HARD_FALLBACK_IDS = [
   { id: '1813926546', name: 'Lo-Fi Chill', artist: 'Lofi' },
   { id: '19500000',   name: 'Ambient',     artist: 'Ambient' },
   { id: '523365012',  name: '轻音乐',      artist: '钢琴曲' },
+  { id: '33894345',   name: 'Rain',        artist: 'Nature' },
+  { id: '186043',     name: '十年',        artist: '陈奕迅' },
 ];
 
 function setCallback(fn) { onTask = fn; }
 function broadcast(data) { if (onTask) onTask(data); }
 
-// Get a playable track from hardcoded free IDs using EMERGENCY URL (no VIP check)
+// Get a playable track from hardcoded free IDs, filtered against 24h plays
 async function resolveHardFallback() {
   const shuffled = [...HARD_FALLBACK_IDS].sort(() => Math.random() - 0.5);
   for (const fb of shuffled) {
     try {
-      const info = await ncm.getEmergencyUrl(fb.id);  // skip VIP check
+      const info = await ncm.getEmergencyUrl(fb.id);
       if (info?.url) {
-        return { id: fb.id, name: fb.name, artists: fb.artist,
+        const track = { id: fb.id, name: fb.name, artists: fb.artist,
           label: `${fb.artist} - ${fb.name}`, url: info.url, album: '' };
+        // Filter: don't play the same track that was just played
+        const filtered = filterRepeats([track]);
+        if (filtered.length) return filtered[0];
+        console.log(`[fallback] Skipped ${fb.name} (recently played), trying next...`);
       }
     } catch {}
   }
+  // All filtered — pick first anyway (better than silence)
+  const fb = HARD_FALLBACK_IDS[0];
+  try {
+    const info = await ncm.getEmergencyUrl(fb.id);
+    if (info?.url) return { id: fb.id, name: fb.name, artists: fb.artist,
+      label: `${fb.artist} - ${fb.name}`, url: info.url, album: '' };
+  } catch {}
   return null;
 }
 
@@ -46,6 +59,7 @@ async function runTask({ trigger, userInput, executionTrace }) {
       console.log(`[scheduler] Circuit OPEN (${_schedulerFailStreak} fails) — hard fallback`);
       const track = await resolveHardFallback();
       if (track) {
+        state.addPlay(track.label || track.name, 'ai');
         broadcast({ type: 'scheduled', trigger, speech: 'AI 暂时休息，为你播首经典。',
           action_type: 'change_song', search_query: track.label, tracks: [track], tts: null });
         _schedulerFailStreak = 0;
@@ -62,13 +76,33 @@ async function runTask({ trigger, userInput, executionTrace }) {
     }
 
     console.log(`[scheduler] ${trigger}`);
+
+    // Pre-search Netease: give AI real songs to pick from
+    const nicheTags = [
+      'City Pop', 'Neo-Soul', 'Jazz Fusion', 'Lo-fi Hip Hop', 'Dream Pop',
+      'Trip-Hop', 'Bossa Nova', 'Chillwave', 'Synthwave', 'Indie Folk',
+      'Math Rock', 'Afrobeat', 'Funk Soul', 'Psychedelic Rock', 'Ambient',
+    ];
+    const tag1 = nicheTags[Math.floor(Math.random() * nicheTags.length)];
+    const tag2 = nicheTags[Math.floor(Math.random() * nicheTags.length)];
+    let preSearchResults = '';
+    try {
+      const r1 = await ncm.search(tag1, 5);
+      const r2 = await ncm.search(tag2, 5);
+      const combined = [...r1, ...r2].slice(0, 8);
+      preSearchResults = combined.map((t, i) => `${i + 1}. ${t.label}`).join('\n');
+      console.log(`[scheduler] Pre-search: "${tag1}" + "${tag2}" → ${combined.length} tracks`);
+    } catch { /* pre-search optional */ }
+
     const s = state.getState();
     const { systemPrompt, userMessage } = await buildContext({
-      userInput, state: s, executionTrace, intent: 'auto',
+      userInput, state: s, executionTrace, intent: 'auto', preSearchResults,
     });
     const result = await askDeepSeek(systemPrompt, userMessage);
     const speech = result.dj_speech || result.speech || result.monologue || result.say || '';
     const query = result.search_query || result.play?.[0] || null;
+    console.log(`[scheduler] AI speech: "${speech.substring(0, 60)}"`);
+    console.log(`[scheduler] AI search_query: "${query}"`);
 
     // Resolve tracks
     let tracks = [];
@@ -80,10 +114,10 @@ async function runTask({ trigger, userInput, executionTrace }) {
     }
     if (!tracks.length) {
       console.log('[scheduler] No tracks after filter — trying hard fallback');
-      // Try hard fallback immediately instead of going silent
       const hard = await resolveHardFallback();
       if (hard) {
         tracks = [hard];
+        state.addPlay(hard.label || hard.name, 'ai');  // record hard fallback too
         console.log(`[scheduler] Hard fallback: ${hard.label}`);
       }
       _schedulerFailStreak++;
@@ -101,8 +135,8 @@ async function runTask({ trigger, userInput, executionTrace }) {
     // Record
     state.addMessage('system', `[${trigger}]`);
     state.addMessage('assistant', speech, {});
-    if (tracks.length) tracks.forEach(t => state.addPlay(t.label || t.name, 'ai'));
-    if (query) state.addPlay(query, 'ai-query');
+    if (tracks.length) tracks.forEach(t => { state.addPlay(t.label || t.name, 'ai'); console.log(`[scheduler] Recorded play: ${t.label || t.name}`); });
+    if (query) { state.addPlay(query, 'ai-query'); console.log(`[scheduler] Recorded query: ${query}`); }
 
     broadcast({ type: 'scheduled', trigger, speech, action_type: 'change_song', search_query: query, tracks, tts });
     console.log(`[scheduler] OK: "${speech.slice(0, 50)}" | tracks: ${tracks.length}`);
@@ -162,15 +196,17 @@ function filterRepeats(tracks) {
     const filtered = tracks.filter(t => {
       const label = (t.label || t.name || '').toLowerCase().trim();
       const artist = (t.artists || '').toLowerCase().trim();
-      if (recentTracks.has(label)) return false;
-      // Only filter by artist if artist is specific (>= 3 chars, not generic)
-      if (artist && artist.length >= 3 && [...recentArtists].some(x => x.length >= 3 && (artist.includes(x) || x.includes(artist)))) return false;
+      if (recentTracks.has(label)) { console.log(`[filter] BLOCKED (exact match): ${label}`); return false; }
+      if (artist && artist.length >= 3 && [...recentArtists].some(x => x.length >= 3 && (artist.includes(x) || x.includes(artist)))) {
+        console.log(`[filter] BLOCKED (artist match): ${artist} in recents`); return false;
+      }
       return true;
     });
-    // NEVER kill all tracks — if filter removed everything, keep the first one
+    console.log(`[filter] Input: ${tracks.length} tracks, Output: ${filtered.length} tracks`);
+    console.log(`[filter] Recent artists (24h):`, [...recentArtists].join(', ').substring(0, 120));
     if (!filtered.length && tracks.length) {
-      console.log('[scheduler] filterRepeats would remove all — keeping first track');
-      return [tracks[0]];
+      console.log('[filter] All filtered — rejecting, triggering hard fallback');
+      return [];
     }
     return filtered;
   } catch { return tracks; }

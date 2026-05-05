@@ -106,15 +106,33 @@ async function analyze(playlistPath = null) {
 }
 
 function buildDNA(data) {
-  const { topArtists, topGenres, topMoods, langMix, totalTracks } = data;
+  const { topGenres, topMoods, langMix, totalTracks } = data;
 
-  const artistList = topArtists.slice(0, 10).map(([a, c]) => `- ${a} (${c} tracks)`).join('\n');
   const genreLine = topGenres.map(([g]) => g).join(' / ');
   const moodLine = topMoods.map(([m]) => m).join(' / ');
 
+  // Map detected genres to descriptive sub-genre hints
+  const genreHints = topGenres.slice(0, 6).map(([g]) => {
+    const map = {
+      hiphop: 'boom-bap, conscious rap, 中文说唱, experimental hip-hop',
+      'r&b': 'neo-soul, alternative R&B, 华语 R&B',
+      jazz: 'cool jazz, jazz-hop, instrumental',
+      rock: 'indie rock, post-rock, math rock',
+      electronic: 'ambient, downtempo, idm, lofi',
+      pop: 'indie pop, dream pop, city pop',
+      folk: 'indie folk, acoustic, singer-songwriter',
+      classical: 'piano, orchestral, minimalist',
+      lofi: 'chillhop, study beats, jazzhop',
+      punk: 'indie punk, emo, post-hardcore',
+      metal: 'progressive metal, post-metal, atmospheric',
+      reggae: 'dub, roots reggae, dancehall',
+      world: 'latin, bossa nova, afrobeat, 国风',
+    };
+    return map[g] ? `- **${g}**: ${map[g]}` : `- **${g}**: explore broadly`;
+  }).join('\n');
+
   return `## <MANDATORY_USER_DNA>
-<!-- This DNA profile is AUTO-GENERATED from the user's actual playlist data. -->
-<!-- You MUST base ALL music recommendations on this profile. NEVER claim ignorance. -->
+<!-- AUTO-GENERATED taste profile. Genre direction ONLY — no artist names. -->
 
 ### Core Identity
 - **Library size**: ${totalTracks} tracks analyzed
@@ -122,8 +140,8 @@ function buildDNA(data) {
 - **Dominant genres**: ${genreLine || 'eclectic / diverse'}
 - **Emotional profile**: ${moodLine || 'varied / balanced'}
 
-### Top Artists (by track count)
-${artistList || '(not enough data)'}
+### Genre DNA (use these as your compass)
+${genreHints || '- Explore broadly across all genres'}
 
 ### Scene Affinity
 - **Morning / Focus**: ${pickScene(topGenres, ['lofi', 'jazz', 'folk', 'classical'])}
@@ -132,11 +150,10 @@ ${artistList || '(not enough data)'}
 - **Late Night / Deep**: ${pickScene(topGenres, ['ambient', 'electronic', 'classical', 'lofi'])}
 
 ### Constraints
-- The user's taste centers on **${genreLine || 'diverse genres'}**.
-- Emotional range skews **${moodLine || 'balanced'}**.
-- Language preference: **${langMix}**.
-- If unsure, default to the user's top artists before suggesting unfamiliar music.
-- DO NOT claim you "haven't seen the playlist" or "don't know the taste". This DNA is the authoritative source.
+- This DNA defines TASTE DIRECTION, not a playlist. You decide which specific artists to recommend.
+- 70% fresh discoveries from these genres + 30% familiar sounds.
+- Chinese/Asian music should be ~50% of recommendations.
+- DO NOT claim ignorance of the user's taste. These genres are the authority.
 </MANDATORY_USER_DNA>`;
 }
 

@@ -19,11 +19,17 @@ async function initAuthUI() {
   try {
     const result = await window.claudio.checkLogin();
     if (result?.loggedIn) {
-      badge.textContent = '✅ 已登录';
-      badge.classList.add('logged-in');
+      badge.classList.remove('guest');
       badge.title = '已登录网易云 — 点击重新登录';
+      // Show nickname first 2 chars in LIVE text
+      const liveText = badge.querySelector('.live-text');
+      if (liveText && result.nickname) {
+        liveText.textContent = result.nickname.slice(0, 2);
+      }
+    } else {
+      badge.classList.add('guest');
     }
-  } catch { /* guest */ }
+  } catch { badge.classList.add('guest'); }
 
   badge.addEventListener('click', () => {
     console.log('[auth_ui] 用户徽章被点击了');
@@ -93,7 +99,7 @@ async function pollStatus() {
       status.textContent = '✅ 登录成功！';
       clearInterval(_pollTimer); _pollTimer = null;
       const badge = $('#user-badge');
-      if (badge) { badge.textContent = '✅ 已登录'; badge.classList.add('logged-in'); }
+      if (badge) { badge.classList.remove('guest'); }
       setTimeout(() => { $('#qr-overlay').classList.add('hidden'); _loginKey = null; }, 1500);
     } else if (result.code === 800) {
       status.style.color = '#f44';

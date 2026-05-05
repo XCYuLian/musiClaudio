@@ -202,6 +202,16 @@ function handleResponse(data) {
   showChat(djSpeech, hasTracks);
   if (hasTracks) {
     const tr = tracks[0];
+    // Soft dedup: only skip if this exact track was the LAST one played (not all history)
+    const label = (tr.label || tr.name || '').toLowerCase();
+    const lastPlayed = _recent.length ? _recent[_recent.length - 1].toLowerCase() : '';
+    if (lastPlayed && lastPlayed.includes(label)) {
+      console.log('[breaker] Back-to-back repeat, skipping:', tr.label);
+      showChat('刚听过这首，换一首。', false);
+      _busy = false; unlockUI();
+      setTimeout(refill, 500);
+      return;
+    }
     currentTrack = tr;
     updatePlayerInfo(tr.label||tr.name, tr.album||'', tr.id);
     if (ttsFile && ttsFile.startsWith('data:')) {
