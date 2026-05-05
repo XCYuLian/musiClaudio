@@ -53,4 +53,7 @@ contextBridge.exposeInMainWorld('claudio', {
   checkLogin: () => ipcRenderer.invoke('auth:checkLogin'),
   getQrCode: () => ipcRenderer.invoke('auth:getQrCode'),
   checkQrStatus: (key) => ipcRenderer.invoke('auth:checkQrStatus', key),
+
+  // Lyrics
+  getLyric: (trackId) => ipcRenderer.invoke('lyric:get', trackId),
 });

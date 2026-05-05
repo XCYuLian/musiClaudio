@@ -27,21 +27,30 @@ function getToday() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function isStationMaster() {
+  try {
+    const state = require('../core/state');
+    const nickname = state.getPref('netease_nickname') || '';
+    return nickname === '秋萝伴点星';
+  } catch { return false; }
+}
+
 function checkDailyLimit() {
+  // Station master: unlimited tokens
+  if (isStationMaster()) return true;
   try {
     const state = require('../core/state');
     const today = getToday();
     const saved = state.getPref('daily_tokens') || {};
-    // Reset if new day
     if (saved.date !== today) {
       state.setPref('daily_tokens', { date: today, used: 0 });
-      return true; // OK
+      return true;
     }
     if (saved.used >= DAILY_TOKEN_LIMIT) {
-      return false; // Limit exceeded
+      return false;
     }
     return true;
-  } catch { return true; } // state not ready → allow
+  } catch { return true; }
 }
 
 function addDailyTokens(tokens) {
@@ -185,10 +194,11 @@ async function askDeepSeek(systemPrompt, userMessage, options = {}) {
     throw new ConfigError('DEEPSEEK_API_KEY is not set. Set it in Settings or .env file.');
   }
 
-  // Daily rate limit (soft — only log, don't block during dev)
-  if (!checkDailyLimit()) {
-    console.warn(`[deepseek] Daily token limit reached (${DAILY_TOKEN_LIMIT.toLocaleString()} tokens). Continuing anyway.`);
-    // Don't block — just log
+  // Daily rate limit
+  if (isStationMaster()) {
+    // Station master — unlimited, no log spam
+  } else if (!checkDailyLimit()) {
+    console.warn(`[deepseek] Daily token limit reached (${DAILY_TOKEN_LIMIT.toLocaleString()} tokens).`);
   }
 
   const body = {

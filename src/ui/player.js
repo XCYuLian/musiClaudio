@@ -1,16 +1,17 @@
 /**
  * Claudio UI — Player Core (src/ui/player.js)
  *
- * Global state, audio pipeline, queue, progress bar, volume, clock.
+ * Global state, audio pipeline, lyrics, progress bar, volume, clock.
  * LOADED FIRST — defines shared globals used by chat.js and favs.js.
  */
 
 const $ = s => document.querySelector(s);
 
 // ── State ──
-let queue = [], currentIdx = -1, playerState = 'idle', lang = localStorage.getItem('claudio_lang') || 'en';
+let currentTrack = null, playerState = 'idle', lang = localStorage.getItem('claudio_lang') || 'en';
 let chatMessages = [], playHistory = JSON.parse(localStorage.getItem('claudio_history') || '[]');
 let _recent = [], _busy = false;
+let _lyricLines = [];  // parsed LRC array
 
 // ── i18n ──
 const T = {
@@ -41,19 +42,61 @@ function setPlayerState(st) {
   $('#btn-play').disabled = (st === 'idle');
 }
 
-// ── Queue ──
-function renderQueue() {
-  const c = $('#queue-list'), cnt = $('#queue-count');
-  cnt.textContent = queue.length + ' tracks';
-  if (!queue.length) { c.innerHTML = '<div class="queue-empty">— 队列为空 —</div>'; return; }
-  c.innerHTML = queue.map((t,i) => {
-    const act = i === currentIdx, dead = !t.url;
-    const cls = act ? 'queue-track active' : (dead?'queue-track dead':'queue-track');
-    const dot = act ? '<span class="dot-pulse green sm" style="margin-right:6px"></span>' : '';
-    return `<div class="${cls}"><span class="queue-idx">${String(i+1).padStart(2,'0')}</span><div class="queue-body"><div class="qt-title">${dot}${esc(t.label||t.name||'?')}</div></div></div>`;
-  }).join('');
-  $('#btn-prev').disabled = currentIdx <= 0;
-  $('#btn-next').disabled = !queue.length;
+// ── Lyrics (Browser-side LRC parser) ──
+function parseLRC(lrc) {
+  if (!lrc) return [];
+  const lines = [];
+  const timeRe = /\[(\d{2}):(\d{2})[.:](\d{2,3})\]/g;
+  for (const raw of lrc.split('\n')) {
+    const text = raw.replace(/\[\d{2}:\d{2}[.:]\d{2,3}\]/g, '').trim();
+    if (!text) continue;
+    const re = /\[(\d{2}):(\d{2})[.:](\d{2,3})\]/g;
+    let m;
+    while ((m = re.exec(raw))) {
+      const min = parseInt(m[1]), sec = parseInt(m[2]);
+      let ms = parseInt(m[3]);
+      if (m[3].length === 2) ms *= 10;
+      lines.push({ time: min * 60 + sec + ms / 1000, text });
+    }
+  }
+  lines.sort((a, b) => a.time - b.time);
+  return lines;
+}
+
+async function loadLyric(trackId) {
+  if (!trackId) return;
+  try {
+    const raw = await window.claudio.getLyric(trackId);
+    _lyricLines = raw?.lrc?.lyric ? parseLRC(raw.lrc.lyric) : [];
+  } catch { _lyricLines = []; }
+  renderLyricLines();
+}
+
+function renderLyricLines() {
+  const container = $('#lyric-lines');
+  if (!container) return;
+  if (!_lyricLines.length) {
+    container.innerHTML = '<div class="lyric-placeholder">— 纯音乐，请欣赏 —</div>';
+    return;
+  }
+  container.innerHTML = _lyricLines.map((l, i) =>
+    `<div class="lyric-line" data-idx="${i}">${esc(l.text)}</div>`
+  ).join('');
+}
+
+function updateLyricHighlight(currentTime) {
+  if (!_lyricLines.length) return;
+  let idx = -1;
+  for (let i = 0; i < _lyricLines.length; i++) {
+    if (_lyricLines[i].time <= currentTime + 0.3) idx = i;
+    else break;
+  }
+  const lines = document.querySelectorAll('.lyric-line');
+  lines.forEach((el, i) => {
+    el.classList.remove('active', 'past');
+    if (i < idx) el.classList.add('past');
+    if (i === idx) { el.classList.add('active'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  });
 }
 
 // ── Progress bar seeking ──
@@ -95,8 +138,8 @@ function initAudio() {
   $('#btn-play').addEventListener('click', () => {
     if (a.src && !a.src.endsWith('null')) { if (a.paused) a.play().catch(()=>{}); else a.pause(); }
   });
-  $('#btn-prev').addEventListener('click', () => skip(-1));
-  $('#btn-next').addEventListener('click', () => skip(1));
+  $('#btn-prev').addEventListener('click', () => { if (!_busy) refill(); });
+  $('#btn-next').addEventListener('click', () => { if (!_busy) refill(); });
 
   a.addEventListener('play', () => { $('#icon-play').style.display='none'; $('#icon-pause').style.display=''; setPlayerState('playing'); });
   a.addEventListener('pause', () => { $('#icon-play').style.display=''; $('#icon-pause').style.display='none'; if (a.src) setPlayerState('ready'); });
@@ -111,6 +154,8 @@ function initAudio() {
       $('#time-now').textContent = fmtTime(a.currentTime);
       $('#time-total').textContent = fmtTime(a.duration);
     }
+    // Lyric highlight
+    updateLyricHighlight(a.currentTime);
     // Pre-fetch at 10s remaining — let refill/fetchAI handle the _busy lock
     if (a.duration && a.duration-a.currentTime < 10 && !_busy) { refill(); }
     // Seek-to-end → skip
@@ -123,41 +168,26 @@ function initAudio() {
 }
 
 function autoNext() {
-  let ni = currentIdx + 1;
-  while (ni < queue.length && !queue[ni]?.url) ni++;
-  if (ni < queue.length && queue[ni]?.url) {
-    currentIdx = ni; renderQueue();
-    const t = queue[currentIdx];
-    updatePlayerInfo(t.label||t.name, t.album||'');
-    playAudio(t.url);
-  } else {
-    setPlayerState('idle');
-    refill();
-  }
-}
-
-function skip(dir) {
-  if (_busy) return;  // Bug 17/18 fix: block skip when DJ is speaking
-  if (!queue.length) return refill();
-  let ni = currentIdx + dir;
-  while (ni>=0 && ni<queue.length && !queue[ni]?.url) ni += dir;
-  if (ni<0) return;
-  if (ni>=queue.length) { setPlayerState('idle'); return refill(); }
-  currentIdx = ni; renderQueue();
-  const t = queue[currentIdx];
-  if (t?.url) { updatePlayerInfo(t.label||t.name, t.album||''); playAudio(t.url); }
+  setPlayerState('idle');
+  refill();
 }
 
 // Marquee guard: only re-render when song actually changes
-let _lastTitle = '', _lastArtist = '';
+let _lastTitle = '', _lastArtist = '', _lastTrackId = '';
 
-function updatePlayerInfo(title, sub) {
+function updatePlayerInfo(title, sub, trackId) {
   const titleText = title||'Claudio.fm';
   const subText = sub||'';
   // Skip if same song — prevents timeupdate/etc from resetting CSS animation
   if (titleText === _lastTitle && subText === _lastArtist) return;
   _lastTitle = titleText;
   _lastArtist = subText;
+
+  // Load lyrics for new song
+  if (trackId && trackId !== _lastTrackId) {
+    _lastTrackId = trackId;
+    loadLyric(trackId);
+  }
 
   const tEl = $('#np-title'), sEl = $('#np-artist');
   tEl.title = titleText;
@@ -208,9 +238,8 @@ function saveState() {
 function loadState() {
   try {
     const s = JSON.parse(localStorage.getItem('claudio_playback')); if (!s?.url) return;
-    if (JSON.parse(localStorage.getItem('claudio_playback')||'{}').queue?.length>20) localStorage.removeItem('claudio_playback');
-    queue=[{label:s.title,name:s.title,url:s.url}];currentIdx=0;renderQueue();
-    updatePlayerInfo(s.title,s.artist);
+    currentTrack = { label: s.title, name: s.title, url: s.url };
+    updatePlayerInfo(s.title, s.artist);
     const a=$('#audio');a.src=s.url;a.currentTime=s.position||0;setPlayerState('ready');a.play().catch(()=>{});
   } catch {}
 }

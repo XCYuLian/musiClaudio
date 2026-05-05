@@ -192,6 +192,10 @@ Git Bash 的 `TEMP=/tmp` 会导致 electron-builder 跨盘失败。
 | 25 | hourly 整点漏网 | cron 回调未检查熔断状态，每次整点照样调 DeepSeek | hourly 回调首行加 `if (_schedulerFailStreak >= MAX) return` |
 | 26 | 登录弹窗假按钮 | `-webkit-app-region: drag` 继承到 user-badge span → 点击被窗口拖拽吞掉 | `.user-badge { -webkit-app-region: no-drag }` |
 | 27 | 二维码裂图 | base64 无前缀 `data:image/png;base64,` 或 API 返回格式不一致 | `img.src = qrData.startsWith('data:') ? qrData : 'data:image/png;base64,' + qrData` |
+| 28 | 兜底歌全是 VIP | 硬编码 ID 全是 VIP，熔断后仍然无法播放 | `getEmergencyUrl()` 跳过 fee 检查 + 免费 ID |
+| 29 | hourly 漏网烧 Token | cron 回调未检查熔断状态，整点照样调 DeepSeek | hourly 回调首行加熔断检查 |
+| 30 | Cookie 存了但不生效 | `getSongUrl` 优先走 proxy，VIP 用户反而绕过了官方 API | VIP 快速通道：有 cookie → 先调 `song_url_v1`，成功直接返回 |
+| 31 | VIP 拿到歌却被 filter 误杀 | `filterRepeats` 跨会话历史全杀 → tracks=[] → 虚假报错"无音源" | filter 禁止全杀：`!filtered.length && tracks.length → [tracks[0]]` |
 
 ## 📖 更多文档
 - `docs/v1_context/architecture.md` — V1 架构详解

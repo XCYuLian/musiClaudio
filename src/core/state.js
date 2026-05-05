@@ -133,6 +133,18 @@ function getRecentPlays(limit = 20) {
   return rows.reverse().map(r => ({ ...r, meta: r.meta ? JSON.parse(r.meta) : null }));
 }
 
+// Get plays from the last 24 hours only (for cold-start dedup)
+function getRecentPlays24h(limit = 200) {
+  if (!ready) return [];
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
+  const stmt = db.prepare("SELECT * FROM plays WHERE played_at >= ? ORDER BY played_at DESC LIMIT ?");
+  stmt.bind([cutoff, limit]);
+  const rows = [];
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows.reverse().map(r => ({ ...r, meta: r.meta ? JSON.parse(r.meta) : null }));
+}
+
 // ── Plan ──
 
 function getTodayPlan() {
@@ -197,4 +209,4 @@ function getState() {
   };
 }
 
-module.exports = { init, getState, addMessage, getRecentMessages, addPlay, getRecentPlays, getTodayPlan, setTodayPlan, getPref, setPref, getAllPrefs };
+module.exports = { init, getState, addMessage, getRecentMessages, addPlay, getRecentPlays, getRecentPlays24h, getTodayPlan, setTodayPlan, getPref, setPref, getAllPrefs };

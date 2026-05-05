@@ -109,37 +109,39 @@ async function runTask({ trigger, userInput, executionTrace }) {
 }
 
 function filterRepeats(tracks) {
+  if (!tracks.length) return tracks;
   const BLOCKED = ['bonobo','toe','uyama hiroto','nujabes','dj okawari'];
   try {
-    const recent = state.getRecentPlays(50);
-    // Extract both artist names and full track labels from recent plays
+    const recent = state.getRecentPlays24h(200);
     const recentArtists = new Set();
     const recentTracks = new Set();
     recent.forEach(p => {
       const t = (p.track || '').toLowerCase().trim();
       if (!t) return;
       recentTracks.add(t);
-      // Try "Artist - Song" format
       const dash = t.indexOf(' - ');
       if (dash > 0) {
         recentArtists.add(t.slice(0, dash).trim());
       } else {
-        // Try "Artist Song" by splitting on first space
         const space = t.indexOf(' ');
         if (space > 0) recentArtists.add(t.slice(0, space).trim());
-        // Also add the whole string as fallback (might be just artist or just song)
       }
     });
     BLOCKED.forEach(a => recentArtists.add(a));
-    return tracks.filter(t => {
+    const filtered = tracks.filter(t => {
       const label = (t.label || t.name || '').toLowerCase().trim();
       const artist = (t.artists || '').toLowerCase().trim();
-      // Block if track label was recently played
       if (recentTracks.has(label)) return false;
-      // Block if artist was recently played
-      if (artist && [...recentArtists].some(x => artist.includes(x) || x.includes(artist))) return false;
+      // Only filter by artist if artist is specific (>= 3 chars, not generic)
+      if (artist && artist.length >= 3 && [...recentArtists].some(x => x.length >= 3 && (artist.includes(x) || x.includes(artist)))) return false;
       return true;
     });
+    // NEVER kill all tracks — if filter removed everything, keep the first one
+    if (!filtered.length && tracks.length) {
+      console.log('[scheduler] filterRepeats would remove all — keeping first track');
+      return [tracks[0]];
+    }
+    return filtered;
   } catch { return tracks; }
 }
 
@@ -147,11 +149,28 @@ function start() {
   cron.schedule('0 7 * * *', () => runTask({ trigger: 'daily', userInput: '早安播报', executionTrace: 'daily-7am' }));
   cron.schedule('0 9 * * *', () => runTask({ trigger: 'morning', userInput: '上午音乐', executionTrace: 'morning-9am' }));
   cron.schedule('0 7-23 * * *', () => {
-    if (_schedulerFailStreak >= MAX_SCHEDULER_FAILS) return; // breaker lock
+    if (_schedulerFailStreak >= MAX_SCHEDULER_FAILS) return;
     const h = new Date().getHours();
     const p = h < 10 ? '早上音乐检查' : h < 12 ? '上午氛围' : h < 14 ? '午餐放松' : h < 17 ? '午后提神' : h < 19 ? '傍晚切换' : '晚间舒缓';
     runTask({ trigger: 'hourly', userInput: p, executionTrace: 'hourly' });
   });
+
+  // ── DJ Proactive: 10-min idle → 20% chance, night silence 1-6am ──
+  setInterval(() => {
+    const h = new Date().getHours();
+    if (h >= 1 && h < 6) return;         // night silence
+    if (_schedulerFailStreak >= MAX_SCHEDULER_FAILS) return;
+    const lastChat = state.getPref('last_chat_time') || 0;
+    const idleMin = (Date.now() - lastChat) / 60000;
+    if (idleMin < 10) return;
+    if (Math.random() > 0.20) return;
+    const liked = state.getPref('liked_songs_sample') || state.getPref('liked_artists') || '';
+    const hint = liked
+      ? `用户偏爱: ${liked.slice(0, 40)}。用20字内聊一句，action_type=chat_only，绝不切歌。`
+      : '用15字内闲聊一句，action_type=chat_only，绝不切歌。';
+    runTask({ trigger: 'proactive', userInput: `(DJ插嘴) 已${Math.round(idleMin)}分钟无操作。${hint}`, executionTrace: 'proactive' });
+  }, 5 * 60 * 1000);
+
   console.log('[scheduler] Started');
 }
 

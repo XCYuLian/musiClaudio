@@ -17,7 +17,9 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 function getCookie() {
   try {
     const state = require('../core/state');
-    return state.getPref('netease_cookie') || process.env.NETEASE_COOKIE || '';
+    const cookie = state.getPref('netease_cookie') || process.env.NETEASE_COOKIE || '';
+    if (cookie) console.log('[netease] cookie injected:', cookie.substring(0, 30) + '...');
+    return cookie;
   } catch { return process.env.NETEASE_COOKIE || ''; }
 }
 
@@ -39,6 +41,32 @@ async function callModule(name, query = {}) {
   if (!fn) throw new Error(`Module function "${name}" not found`);
   const cookie = getCookie();
   return fn({ ...query, ...(cookie ? { cookie } : {}) });
+}
+
+// ── User profile / VIP verification ──
+async function getLoginStatus() {
+  try {
+    if (!ncmModule) return null;
+    const cookie = getCookie();
+    if (!cookie) return null;
+    const res = await callModule('login_status', {});
+    const profile = res.body?.data?.profile || res.body?.profile || null;
+    if (profile?.nickname) {
+      console.log(`[netease] Logged in as: ${profile.nickname} (VIP: ${profile.vipType > 0 ? 'yes' : 'no'})`);
+    }
+    return profile;
+  } catch (e) {
+    console.log('[netease] Not logged in:', e.message);
+    return null;
+  }
+}
+
+async function getLikedSongs(uid, limit = 100) {
+  if (!ncmModule) return [];
+  try {
+    const res = await callModule('likelist', { uid, limit });
+    return (res.body?.ids || []).map(String);
+  } catch { return []; }
 }
 
 // ── Track formatter ──
@@ -93,7 +121,7 @@ async function proxyGetSongUrl(trackId) {
   const pu = getProxyUrl();
   if (!pu) return null;
   try {
-    const url = `${pu}/song/url?id=${trackId}&br=320000`;
+    const url = `${pu}/song/url?id=${trackId}&br=999000`;
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     const data = await res.json();
     const info = data.data?.[0];
@@ -104,35 +132,58 @@ async function proxyGetSongUrl(trackId) {
   return null;
 }
 
-/** Get playable stream URL. Proxy (VIP unlock) → Module → Web fallback. */
+/** Get playable stream URL. VIP priority: Official API → Module → Proxy → Web fallback. */
 async function getSongUrl(trackId) {
-  // 1. Try proxy first (unlocks VIP)
-  const proxyResult = await proxyGetSongUrl(trackId);
-  if (proxyResult?.url) return proxyResult;
+  const cookie = getCookie();
+  const isVip = !!cookie;
 
-  // 2. Try module
-  if (ncmModule) {
+  // ── VIP FAST PATH: try official API with high quality FIRST ──
+  if (isVip && ncmModule) {
     try {
-      const res = await callModule('song_url', { id: trackId, br: 320000 });
+      console.log(`[netease] VIP 身份检测成功，正在请求官方高码率音源...`);
+      // Try song_url_v1 with lossless level first
+      let res;
+      try {
+        res = await callModule('song_url_v1', { id: trackId, level: 'lossless' });
+      } catch {
+        res = await callModule('song_url', { id: trackId, br: 999000 });
+      }
       const info = res.body?.data?.[0];
-      // Check if VIP-limited
+      if (info?.url) {
+        // VIP users can play ANY song — fee check is irrelevant
+        console.log(`[netease] ✅ VIP 官方音源获取成功！直连播放 (fee=${info.fee}, br=${info.br})`);
+        return { url: info.url, type: info.type || 'mp3', br: info.br || 999000, via: 'vip-official' };
+      }
+    } catch (e) { console.log('[netease] VIP official API failed:', e.message); }
+  }
+
+  // ── FALLBACK: Module (no VIP) ──
+  if (ncmModule && !isVip) {
+    try {
+      const res = await callModule('song_url', { id: trackId, br: 999000 });
+      const info = res.body?.data?.[0];
       if (info?.url && info.fee !== 1 && info.fee !== 4) {
         return { url: info.url, type: info.type, br: info.br, via: 'module' };
       }
       if (info?.url && (info.fee === 1 || info.fee === 4)) {
-        console.log(`[netease] Track ${trackId} is VIP (fee=${info.fee}), trying alternatives...`);
-        // Try proxy again even if first attempt failed
+        console.log(`[netease] Track ${trackId} is VIP (fee=${info.fee}), proxy fallback...`);
         const retry = await proxyGetSongUrl(trackId);
         if (retry?.url) return retry;
       }
     } catch (e) { console.log('[netease] module song_url failed:', e.message); }
   }
-  // 3. Web fallback
+
+  // ── Proxy fallback (for non-VIP or VIP API failure) ──
+  const proxyResult = await proxyGetSongUrl(trackId);
+  if (proxyResult?.url) return proxyResult;
+
+  // ── Web fallback (last resort) ──
   try {
-    const data = await webGet(`/song/enhance/player/url?id=${trackId}&ids=%5B${trackId}%5D&br=320000`);
+    const data = await webGet(`/song/enhance/player/url?id=${trackId}&ids=%5B${trackId}%5D&br=999000`);
     const info = data.data?.[0];
     if (info?.url) return { url: info.url, type: info.type, br: info.br, via: 'web' };
   } catch { /* no URL available */ }
+
   return null;
 }
 
@@ -361,6 +412,6 @@ async function getEmergencyUrl(trackId) {
 
 module.exports = {
   search, getSongUrl, getEmergencyUrl, getLyric, getSongDetail,
-  getUserPlaylists, getPlaylistDetail,
+  getUserPlaylists, getPlaylistDetail, getLoginStatus, getLikedSongs,
   resolveTrack, resolvePlaylist, ping,
 };

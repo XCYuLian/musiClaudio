@@ -131,6 +131,7 @@ async function buildContext(opts = {}) {
     `### Routines\n${routines}`,
     `### Mood Rules\n${moodRules}`,
     `### Your Playlist (sample showing genre variety — DO NOT recommend these)\n\`\`\`\n${playlistSample.filter((_,i)=>i%4===0).slice(0,50).join('\n')}\n\`\`\`\n(Total: ${playlistSample.length}+ tracks. Half are Chinese/Asian artists. These are OFF-LIMITS.)`,
+    getLikedSongsHint(),
 
     '---',
     '## ENVIRONMENT',
@@ -174,6 +175,9 @@ async function buildContext(opts = {}) {
     '',
     'CRITICAL: Use the CURRENT TIME block above as the authoritative time reference.',
     '',
+    '## EXPLORATION BIAS (randomized each request — avoid repetition)',
+    `${getExplorationBias()}`,
+    '',
     '## DISCOVERY + DIVERSITY RULES',
     '- 90% of recs: songs NOT in the playlist. 10% max: comfort picks.',
     '- 50% MUST be Chinese/Asian music (华语/粤语/日韩). Alternate languages.',
@@ -191,6 +195,70 @@ async function buildContext(opts = {}) {
   }
 
   return { systemPrompt, userMessage };
+}
+
+// ---------------------------------------------------------------------------
+// Exploration bias — random niche genre injection (Plan 3: diversity)
+// ---------------------------------------------------------------------------
+const NICHE_GENRES = [
+  'Lo-fi Hip Hop', 'Vaporwave', 'City Pop', '采样艺术/Sample-based',
+  'Shoegaze', 'Dream Pop', 'Post-Rock 后摇', 'Neo-Soul',
+  'Trip-Hop', 'Ambient Techno', 'Jazz Fusion', 'Bossa Nova',
+  'Chillwave', 'Synthwave', 'Indie Folk', 'Math Rock',
+  'Afrobeat', 'Latin Jazz', 'Funk/Soul', 'Psychedelic Rock',
+];
+const EXPLORATION_TIPS = [
+  '尝试推荐一些小众独立音乐人的作品，避开主流榜单。',
+  '今天适合探索 80-90 年代的华语遗珠。',
+  '挖掘一些韩国 R&B 或日本 City Pop。',
+  '推荐几首器乐/纯音乐作品，歌词不是必须的。',
+  '可以推荐一些采样老歌的现代改编版。',
+  '今天偏向氛围感强的音乐，不一定要有歌词。',
+  '尝试推一些不同语言的音乐（法语、西语、韩语）。',
+];
+
+function getExplorationBias() {
+  const genre = NICHE_GENRES[Math.floor(Math.random() * NICHE_GENRES.length)];
+  const tip = EXPLORATION_TIPS[Math.floor(Math.random() * EXPLORATION_TIPS.length)];
+  const weather = getWeatherHint();
+  return [
+    `🎯 今日探索方向: ${genre}`,
+    `💡 ${tip}`,
+    weather ? `🌤 ${weather}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+function getWeatherHint() {
+  const h = new Date().getHours();
+  const m = new Date().getMonth() + 1;
+  const d = new Date().getDate();
+  // Zodiac sign approximation
+  const zodiac = getZodiac(m, d);
+  if (h < 6) return `凌晨 ${h} 点，适合极度冷静的 Ambient 或 Lo-fi。${zodiac}`;
+  if (h < 9) return `清晨 ${h} 点，适合温柔唤醒的 Acoustic 或 Bossa Nova。${zodiac}`;
+  if (h < 12) return `上午工作时段，推荐专注友好的 Post-Rock 或器乐。${zodiac}`;
+  if (h < 14) return `午餐时间，来点轻松的 Jazz 或 City Pop。${zodiac}`;
+  if (h < 17) return `下午提神，适合 Funk、Neo-Soul 或 Afrobeat。${zodiac}`;
+  if (h < 19) return `傍晚放松，推荐 Dream Pop 或 Chillwave。${zodiac}`;
+  if (h < 22) return `夜晚氛围，来点 Trip-Hop 或 Ambient Techno。${zodiac}`;
+  return `深夜 ${h} 点，适合极简 Ambient 或 Lo-fi。${zodiac}`;
+}
+
+function getZodiac(month, day) {
+  const signs = ['摩羯座','水瓶座','双鱼座','白羊座','金牛座','双子座','巨蟹座','狮子座','处女座','天秤座','天蝎座','射手座'];
+  const cuts = [20,19,21,20,21,22,23,23,23,24,23,22];
+  let idx = month - 1;
+  if (day < cuts[idx]) idx = (idx + 11) % 12;
+  return `今日星座运势参考: ${signs[idx]}`;
+}
+
+function getLikedSongsHint() {
+  try {
+    const state = require('./state');
+    const liked = state.getPref('liked_songs_sample') || '';
+    if (!liked) return '';
+    return `### 🎧 网易云心动歌曲 (Reference Anchors)\n你最近收藏了这些歌，说明你偏爱这类风格。请找风格相似但**不同的新声音**，不要重复推荐这些歌：\n${liked}`;
+  } catch { return ''; }
 }
 
 // ---------------------------------------------------------------------------

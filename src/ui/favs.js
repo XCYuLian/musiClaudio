@@ -43,7 +43,7 @@ function initFavs() {
 
 // ── Master Init ──
 document.addEventListener('DOMContentLoaded', () => {
-  initClock(); initAudio(); initVolume(); initChat(); initLogoTap(); renderQueue(); renderChat(); renderHistory();
+  initClock(); initAudio(); initVolume(); initChat(); initLogoTap(); renderChat(); renderHistory();
   initSettings(); initFavs();
   $('#btn-min').addEventListener('click',()=>window.claudio.minimize());
   $('#btn-close').addEventListener('click',()=>window.claudio.close());

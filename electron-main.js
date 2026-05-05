@@ -50,6 +50,7 @@ function createWindow() {
   // Chat: renderer → backend → back to renderer
   ipcMain.handle('chat:send', async (_event, message) => {
     try {
+      state.setPref('last_chat_time', Date.now()); // for DJ proactive idle detection
       const result = await route(message);
       return { ok: true, ...result };
     } catch (err) {
@@ -181,6 +182,28 @@ function createWindow() {
     }
   });
 
+  // ── Lyrics ──
+  ipcMain.handle('lyric:get', async (_event, trackId) => {
+    try {
+      const { getLyric } = require('./src/api/netease');
+      const lrc = await getLyric(trackId);
+      return { ok: true, lrc };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  });
+
+  // ── Verify login status on startup ──
+  const { getLoginStatus } = require('./src/api/netease');
+  getLoginStatus().then(profile => {
+    if (profile?.nickname) {
+      state.setPref('netease_nickname', profile.nickname);
+      if (profile.nickname === '秋萝伴点星') {
+        console.log('[auth] 欢迎台长归位，无限 Token 权限已自动激活。');
+      }
+    }
+  }).catch(() => {});
+
   // ── Auth: Netease QR login (non-blocking single ops) ──
   const { getLoginQrCode, checkQrStatus, saveCookie } = require('./src/api/auth');
 
@@ -203,6 +226,24 @@ function createWindow() {
       const result = await checkQrStatus(key);
       if (result.code === 803 && result.cookie) {
         saveCookie(result.cookie);
+        // Fetch liked songs sample for personalized recommendations
+        const { getLoginStatus, getLikedSongs, getSongDetail } = require('./src/api/netease');
+        const profile = await getLoginStatus().catch(() => null);
+        if (profile?.userId) {
+          state.setPref('netease_nickname', profile.nickname || '');
+          if (profile.nickname === '秋萝伴点星') {
+            console.log('[auth] 欢迎台长归位，无限 Token 权限已自动激活。');
+          }
+          const ids = await getLikedSongs(profile.userId, 10);
+          if (ids.length) {
+            try {
+              const songs = await getSongDetail(ids.slice(0, 5));
+              const sample = songs.map(s => s.label || s.name).join(', ');
+              state.setPref('liked_songs_sample', sample);
+              console.log('[auth] Liked songs sample saved:', sample);
+            } catch {}
+          }
+        }
       }
       return result;
     } catch (e) {
@@ -288,8 +329,13 @@ app.whenReady().then(async () => {
     return { ok: true };
   });
 
-  // Start UnblockNeteaseMusic proxy for VIP track unlocking
-  proxy.start();
+  // Start proxy only for non-VIP users (VIP uses official API directly)
+  const hasCookie = state.getPref('netease_cookie');
+  if (!hasCookie) {
+    proxy.start();
+  } else {
+    console.log('[proxy] Skipped — VIP user, using official API direct connect');
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

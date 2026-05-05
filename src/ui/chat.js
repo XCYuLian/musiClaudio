@@ -198,15 +198,12 @@ function handleResponse(data) {
     return;
   }
 
-  // change_song → actually play new music
+  // change_song → actually play new music (Plan 3: single track, no queue)
   showChat(djSpeech, hasTracks);
   if (hasTracks) {
-    const isAuto = data.type === 'scheduled' || data.trigger === 'startup';
-    queue = (isAuto && queue.length) ? [...queue, ...tracks] : tracks;
-    if (!isAuto) currentIdx = 0;
-    renderQueue();
     const tr = tracks[0];
-    updatePlayerInfo(tr.label||tr.name, tr.album||'');
+    currentTrack = tr;
+    updatePlayerInfo(tr.label||tr.name, tr.album||'', tr.id);
     if (ttsFile && ttsFile.startsWith('data:')) {
       const a = document.getElementById('audio');
       const v = a ? a.volume : 1;

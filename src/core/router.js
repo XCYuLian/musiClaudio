@@ -109,8 +109,9 @@ async function handleChat(input, intent = 'chat') {
 }
 
 function filterRepeats(tracks) {
+  if (!tracks.length) return tracks;
   try {
-    const recent = state.getRecentPlays(50);
+    const recent = state.getRecentPlays24h(200);
     const recentArtists = new Set();
     const recentTracks = new Set();
     recent.forEach(p => {
@@ -125,13 +126,15 @@ function filterRepeats(tracks) {
         if (space > 0) recentArtists.add(t.slice(0, space).trim());
       }
     });
-    return tracks.filter(t => {
+    const filtered = tracks.filter(t => {
       const label = (t.label || t.name || '').toLowerCase().trim();
       const artist = (t.artists || '').toLowerCase().trim();
       if (recentTracks.has(label)) return false;
-      if (artist && [...recentArtists].some(x => artist.includes(x) || x.includes(artist))) return false;
+      if (artist && artist.length >= 3 && [...recentArtists].some(x => x.length >= 3 && (artist.includes(x) || x.includes(artist)))) return false;
       return true;
     });
+    if (!filtered.length && tracks.length) return [tracks[0]];
+    return filtered;
   } catch { return tracks; }
 }
 
