@@ -56,6 +56,11 @@ async function runTask({ trigger, userInput, executionTrace }) {
       return;
     }
 
+    // Proactive chat: chat_only, no track resolution
+    if (trigger === 'proactive') {
+      return runChatTask({ trigger, userInput, executionTrace });
+    }
+
     console.log(`[scheduler] ${trigger}`);
     const s = state.getState();
     const { systemPrompt, userMessage } = await buildContext({
@@ -104,6 +109,32 @@ async function runTask({ trigger, userInput, executionTrace }) {
     return result;
   } catch (e) {
     console.error(`[scheduler] FAIL (${trigger}):`, e.message);
+    return null;
+  }
+}
+
+// Chat-only task: DJ speaks without changing music
+async function runChatTask({ trigger, userInput, executionTrace }) {
+  try {
+    console.log(`[scheduler] ${trigger} (chat_only)`);
+    const s = state.getState();
+    const { systemPrompt, userMessage } = await buildContext({
+      userInput, state: s, executionTrace, intent: 'chat',
+    });
+    const result = await askDeepSeek(systemPrompt, userMessage);
+    const speech = result.dj_speech || result.speech || result.monologue || result.say || '';
+    state.addMessage('system', `[${trigger}]`);
+    state.addMessage('assistant', speech, {});
+    let tts = null;
+    try {
+      const p = await synthesize(speech);
+      if (p) tts = 'data:audio/mp3;base64,' + require('fs').readFileSync(p).toString('base64');
+    } catch {}
+    broadcast({ type: 'scheduled', trigger, speech, action_type: 'chat_only', search_query: null, tracks: [], tts });
+    console.log(`[scheduler] Chat OK: "${speech.slice(0, 50)}"`);
+    return result;
+  } catch (e) {
+    console.error(`[scheduler] Chat FAIL:`, e.message);
     return null;
   }
 }

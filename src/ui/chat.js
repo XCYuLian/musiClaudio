@@ -78,7 +78,7 @@ function playTts(ttsFile, volume, onEnd) {
   }
   const tts = new Audio(ttsFile);
   _currentTts = tts;
-  tts.volume = volume;
+  tts.volume = Math.min(volume * 1.4, 1.0);  // boost DJ voice 40%
   tts.onended = () => {
     _currentTts = null;
     if (onEnd) onEnd();

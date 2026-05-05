@@ -91,11 +91,19 @@ function updateLyricHighlight(currentTime) {
     if (_lyricLines[i].time <= currentTime + 0.3) idx = i;
     else break;
   }
+  const panel = $('#lyric-panel');
   const lines = document.querySelectorAll('.lyric-line');
   lines.forEach((el, i) => {
     el.classList.remove('active', 'past');
     if (i < idx) el.classList.add('past');
-    if (i === idx) { el.classList.add('active'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    if (i === idx) {
+      el.classList.add('active');
+      // Smooth scroll: use container scrollTop instead of scrollIntoView
+      if (panel) {
+        const offset = el.offsetTop - panel.clientHeight / 2 + el.clientHeight / 2;
+        panel.scrollTo({ top: offset, behavior: 'smooth' });
+      }
+    }
   });
 }
 
@@ -178,39 +186,46 @@ let _lastTitle = '', _lastArtist = '', _lastTrackId = '';
 function updatePlayerInfo(title, sub, trackId) {
   const titleText = title||'Claudio.fm';
   const subText = sub||'';
-  // Skip if same song — prevents timeupdate/etc from resetting CSS animation
   if (titleText === _lastTitle && subText === _lastArtist) return;
   _lastTitle = titleText;
   _lastArtist = subText;
 
-  // Load lyrics for new song
   if (trackId && trackId !== _lastTrackId) {
     _lastTrackId = trackId;
     loadLyric(trackId);
   }
 
   const tEl = $('#np-title'), sEl = $('#np-artist');
+  // Clear previous animations
+  [tEl, sEl].forEach(el => {
+    el.classList.remove('float', 'marquee');
+    el.textContent = '';
+    el.style.animation = '';
+  });
   tEl.title = titleText;
   sEl.title = subText;
   tEl.textContent = titleText;
   sEl.textContent = subText;
 
-  // Wait for layout, then detect overflow and apply marquee
-  requestAnimationFrame(() => {
-    [tEl, sEl].forEach(el => {
-      const overflow = el.scrollWidth - el.clientWidth;
-      if (overflow > 4) {
-        const text = el.textContent;
-        const span = document.createElement('span');
-        span.textContent = text;
-        el.textContent = '';
-        el.appendChild(span);
-        const dx = -(el.scrollWidth - el.clientWidth);
-        const speed = Math.max(el.scrollWidth / 40, 6);
-        span.style.setProperty('--dx', dx + 'px');
-        span.style.animation = `marquee ${speed}s linear infinite`;
-      }
-    });
+  // Force layout, then decide: float (short) or marquee (long)
+  void tEl.offsetHeight;  // force reflow
+  [tEl, sEl].forEach(el => {
+    const overflow = el.scrollWidth - el.clientWidth;
+    if (overflow > 2) {
+      // Long text → marquee scroll
+      const text = el.textContent;
+      const span = document.createElement('span');
+      span.textContent = text;
+      el.textContent = '';
+      el.appendChild(span);
+      const dx = -(el.scrollWidth - el.clientWidth);
+      const speed = Math.max(el.scrollWidth / 45, 8);
+      span.style.setProperty('--dx', dx + 'px');
+      span.style.animation = `marquee ${speed}s linear infinite`;
+    } else {
+      // Short text → float sway
+      el.classList.add('float');
+    }
   });
 }
 
