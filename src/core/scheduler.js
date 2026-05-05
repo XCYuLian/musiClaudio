@@ -11,11 +11,51 @@ const state = require('./state');
 
 let onTask = null;
 
+// ── Scheduler circuit breaker (Plan 2: stop AI loop when search keeps failing) ──
+let _schedulerFailStreak = 0;
+const MAX_SCHEDULER_FAILS = 1;  // ONE failure → lock down ALL cron tasks
+// Hardcoded FREE Netease track IDs (confirmed non-VIP, any quality OK via emergency)
+const HARD_FALLBACK_IDS = [
+  { id: '1813926546', name: 'Lo-Fi Chill', artist: 'Lofi' },
+  { id: '19500000',   name: 'Ambient',     artist: 'Ambient' },
+  { id: '523365012',  name: '轻音乐',      artist: '钢琴曲' },
+];
+
 function setCallback(fn) { onTask = fn; }
 function broadcast(data) { if (onTask) onTask(data); }
 
+// Get a playable track from hardcoded free IDs using EMERGENCY URL (no VIP check)
+async function resolveHardFallback() {
+  const shuffled = [...HARD_FALLBACK_IDS].sort(() => Math.random() - 0.5);
+  for (const fb of shuffled) {
+    try {
+      const info = await ncm.getEmergencyUrl(fb.id);  // skip VIP check
+      if (info?.url) {
+        return { id: fb.id, name: fb.name, artists: fb.artist,
+          label: `${fb.artist} - ${fb.name}`, url: info.url, album: '' };
+      }
+    } catch {}
+  }
+  return null;
+}
+
 async function runTask({ trigger, userInput, executionTrace }) {
   try {
+    // Circuit breaker: if search keeps failing, skip DeepSeek entirely
+    if (_schedulerFailStreak >= MAX_SCHEDULER_FAILS) {
+      console.log(`[scheduler] Circuit OPEN (${_schedulerFailStreak} fails) — hard fallback`);
+      const track = await resolveHardFallback();
+      if (track) {
+        broadcast({ type: 'scheduled', trigger, speech: 'AI 暂时休息，为你播首经典。',
+          action_type: 'change_song', search_query: track.label, tracks: [track], tts: null });
+        _schedulerFailStreak = 0;
+      } else {
+        console.log('[scheduler] Hard fallback all failed — dead air, waiting for user');
+        _schedulerFailStreak++;
+      }
+      return;
+    }
+
     console.log(`[scheduler] ${trigger}`);
     const s = state.getState();
     const { systemPrompt, userMessage } = await buildContext({
@@ -31,8 +71,19 @@ async function runTask({ trigger, userInput, executionTrace }) {
       try {
         tracks = await ncm.resolvePlaylist([query]);
         tracks = filterRepeats(tracks);
-        if (!tracks.length) console.log('[scheduler] No tracks after filter');
       } catch (e) { console.error('[scheduler] resolve:', e.message); }
+    }
+    if (!tracks.length) {
+      console.log('[scheduler] No tracks after filter — trying hard fallback');
+      // Try hard fallback immediately instead of going silent
+      const hard = await resolveHardFallback();
+      if (hard) {
+        tracks = [hard];
+        console.log(`[scheduler] Hard fallback: ${hard.label}`);
+      }
+      _schedulerFailStreak++;
+    } else {
+      _schedulerFailStreak = 0; // reset on success
     }
 
     // TTS
@@ -96,6 +147,7 @@ function start() {
   cron.schedule('0 7 * * *', () => runTask({ trigger: 'daily', userInput: '早安播报', executionTrace: 'daily-7am' }));
   cron.schedule('0 9 * * *', () => runTask({ trigger: 'morning', userInput: '上午音乐', executionTrace: 'morning-9am' }));
   cron.schedule('0 7-23 * * *', () => {
+    if (_schedulerFailStreak >= MAX_SCHEDULER_FAILS) return; // breaker lock
     const h = new Date().getHours();
     const p = h < 10 ? '早上音乐检查' : h < 12 ? '上午氛围' : h < 14 ? '午餐放松' : h < 17 ? '午后提神' : h < 19 ? '傍晚切换' : '晚间舒缓';
     runTask({ trigger: 'hourly', userInput: p, executionTrace: 'hourly' });

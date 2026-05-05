@@ -335,8 +335,32 @@ async function ping() {
   }
 }
 
+/**
+ * Emergency URL: skip proxy/module/VIP checks. Web-only, any quality, no filter.
+ * Used ONLY for hard fallback when everything else failed.
+ */
+async function getEmergencyUrl(trackId) {
+  try {
+    const data = await webGet(`/song/enhance/player/url?id=${trackId}&ids=%5B${trackId}%5D&br=128000`);
+    const info = data.data?.[0];
+    // Accept ANY URL, even low quality — better than silence
+    if (info?.url) return { url: info.url, type: info.type, br: info.br, via: 'emergency' };
+  } catch {}
+  // Last resort: try the ancient API
+  try {
+    const cookie = getCookie();
+    const headers = { 'User-Agent': UA, 'Referer': 'https://music.163.com/' };
+    if (cookie) headers['Cookie'] = cookie;
+    const res = await fetch(`https://music.163.com/api/song/enhance/player/url?id=${trackId}&ids=%5B${trackId}%5D&br=128000`, { headers });
+    const data = await res.json();
+    const info = data.data?.[0];
+    if (info?.url) return { url: info.url, type: info.type, br: info.br, via: 'emergency-legacy' };
+  } catch {}
+  return null;
+}
+
 module.exports = {
-  search, getSongUrl, getLyric, getSongDetail,
+  search, getSongUrl, getEmergencyUrl, getLyric, getSongDetail,
   getUserPlaylists, getPlaylistDetail,
   resolveTrack, resolvePlaylist, ping,
 };

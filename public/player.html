@@ -38,6 +38,7 @@
       <button id="btn-theme" class="btn-ghost">DARK</button>
       <button id="btn-lang" class="btn-ghost">中文</button>
       <button id="btn-favs" class="btn-ghost" title="收藏列表">❤️</button>
+      <span id="user-badge" class="user-badge" title="点击登录网易云">🎵 游客</span>
       <button id="btn-settings" class="btn-ghost" title="Settings">SET</button>
       <span class="win-dots">
         <button id="btn-min" title="Minimize">—</button>
@@ -200,11 +201,25 @@
     </div>
   </div>
 
+  <!-- ═══ QR LOGIN MODAL ═══ -->
+  <div id="qr-overlay" class="hidden">
+    <div class="qr-modal">
+      <div class="qr-head">
+        <span>🔐 网易云扫码登录</span>
+        <button id="qr-close" class="qr-close-btn">✕</button>
+      </div>
+      <img id="qr-image" class="qr-image" alt="QR Code" src="">
+      <p id="qr-status" class="qr-status">点击用户徽章开始登录</p>
+      <p class="qr-hint">打开网易云音乐 APP → 扫一扫</p>
+    </div>
+  </div>
+
 </div>
 
 <audio id="audio" preload="none"></audio>
 <script src="../src/ui/player.js"></script>
 <script src="../src/ui/chat.js"></script>
 <script src="../src/ui/favs.js"></script>
+<script src="../src/ui/auth_ui.js"></script>
 </body>
 </html>

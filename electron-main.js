@@ -181,6 +181,35 @@ function createWindow() {
     }
   });
 
+  // ── Auth: Netease QR login (non-blocking single ops) ──
+  const { getLoginQrCode, checkQrStatus, saveCookie } = require('./src/api/auth');
+
+  ipcMain.handle('auth:checkLogin', async () => {
+    const cookie = state.getPref('netease_cookie') || '';
+    return { loggedIn: !!cookie };
+  });
+
+  ipcMain.handle('auth:getQrCode', async () => {
+    try {
+      const { key, qrimg } = await getLoginQrCode();
+      return { ok: true, key, qrimg };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('auth:checkQrStatus', async (_event, key) => {
+    try {
+      const result = await checkQrStatus(key);
+      if (result.code === 803 && result.cookie) {
+        saveCookie(result.cookie);
+      }
+      return result;
+    } catch (e) {
+      return { code: -1, message: e.message };
+    }
+  });
+
   // Proxy status for renderer
   ipcMain.handle('proxy:ping', async () => {
     const alive = await proxy.ping();

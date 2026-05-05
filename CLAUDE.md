@@ -1,5 +1,70 @@
 # Claudio — 开发者规则与避坑指南 (V2 Ready)
 
+
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+## 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+## 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+## 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+## 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
 ## 技术栈
 - **Runtime**: Node.js ≥ 18, Electron + CommonJS
 - **数据库**: sql.js (SQLite WASM, `data/state.db`)
@@ -122,6 +187,11 @@ Git Bash 的 `TEMP=/tmp` 会导致 electron-builder 跨盘失败。
 | 20 | AI 空返回卡死 | DeepSeek 超时无兜底 → `_busy` 永不释放 | `DEFAULT_FALLBACK` 兜底 + 重试 3 次后停止 |
 | 21 | 歌手名不显示 | Web API 返回数据不用 `ar` 字段 | `formatTrack` 兼容 `ar`/`artists`/`artist` 多种格式 |
 | 22 | 重复推歌 | `filterRepeats` 只按 ` - ` 分隔解析歌手，无 ` - ` 的记录全放过 | 双格式解析 + track 名精确去重 |
+| 23 | Token 死循环 | scheduler 主进程直接调 DeepSeek，熔断只在渲染进程，scheduler 无视 | 双层熔断: scheduler `_schedulerFailStreak` + chat `_failStreak` |
+| 24 | 熔断后电台哑巴 | 兜底 ID 全是 VIP + proxy 宕 → `resolveHardFallback` 全失败 | `getEmergencyUrl()` 绕过 fee 检查 + 免费 ID + MAX=1 |
+| 25 | hourly 整点漏网 | cron 回调未检查熔断状态，每次整点照样调 DeepSeek | hourly 回调首行加 `if (_schedulerFailStreak >= MAX) return` |
+| 26 | 登录弹窗假按钮 | `-webkit-app-region: drag` 继承到 user-badge span → 点击被窗口拖拽吞掉 | `.user-badge { -webkit-app-region: no-drag }` |
+| 27 | 二维码裂图 | base64 无前缀 `data:image/png;base64,` 或 API 返回格式不一致 | `img.src = qrData.startsWith('data:') ? qrData : 'data:image/png;base64,' + qrData` |
 
 ## 📖 更多文档
 - `docs/v1_context/architecture.md` — V1 架构详解

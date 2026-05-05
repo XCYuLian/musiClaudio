@@ -13,6 +13,14 @@ let _currentTts = null;
 let _fallbackCount = 0;
 const MAX_FALLBACK_RETRIES = 3;
 
+// ── Circuit breaker (Plan 2: stop AI loop when search keeps failing) ──
+let _failStreak = 0;
+const MAX_FAIL_STREAK = 3;
+// Hardcoded tracks guaranteed free & playable on Netease
+const LOCAL_FALLBACK = [
+  '周杰伦 晴天', '陈奕迅 十年', '林俊杰 江南', '王菲 红豆', '张学友 吻别',
+];
+
 // ── Default fallback playlist (Bug 4 fix: AI empty → play backup) ──
 const DEFAULT_FALLBACK = [
   { label: '周杰伦 - 晴天', name: '晴天', artists: '周杰伦', album: '叶惠美', url: '' },
@@ -109,39 +117,52 @@ async function fetchAI(msg, hidden) {
 
 async function refill() {
   if (_busy) return;
+  // Plan 2: circuit breaker — don't call AI if search keeps failing
+  if (_failStreak >= MAX_FAIL_STREAK) {
+    console.log('[breaker] refill blocked — circuit open');
+    return;
+  }
   const h = new Date().getHours();
   const mood = h<6?'深夜':h<9?'清晨':h<12?'上午':h<14?'午后':h<17?'下午':h<19?'傍晚':'夜晚';
   fetchAI(mood+'了，推荐下一首', '');
 }
 
-// ── Bug 4 fix: fallback when AI returns nothing, with retry + give-up ──
+// ── Bug 4 + Plan 2 fix: fallback with circuit breaker ──
 function handleFallback() {
   _fallbackCount++;
-  if (_fallbackCount <= MAX_FALLBACK_RETRIES) {
-    // Retry: wait and try AI again
+  _failStreak++;
+  if (_failStreak >= MAX_FAIL_STREAK) {
+    // Circuit breaker: stop all AI calls, play local
+    console.log(`[breaker] AI + search failing (${_failStreak}x) — circuit open`);
+    showChat('AI 暂时无法连接，为你播放一首经典。恢复后说"换一首"即可。', false);
+    const fb = DEFAULT_FALLBACK[Math.floor(Math.random() * DEFAULT_FALLBACK.length)];
+    queue = [{ label: fb.label, name: fb.name, artists: fb.artists, url: '' }];
+    currentIdx = 0; renderQueue();
+    updatePlayerInfo(fb.label, fb.album);
+    _busy = false;
+    unlockUI();
+  } else if (_fallbackCount <= MAX_FALLBACK_RETRIES) {
     console.log(`[fallback] AI failed, retry ${_fallbackCount}/${MAX_FALLBACK_RETRIES}`);
     _busy = false;
     unlockUI();
-    setTimeout(refill, 2000);  // wait 2s before retry, give network time
+    setTimeout(refill, 2000);
   } else {
-    // Give up after max retries — play local fallback and wait for manual input
-    const fallback = DEFAULT_FALLBACK[Math.floor(Math.random() * DEFAULT_FALLBACK.length)];
-    showChat('AI 暂时无法连接，为你播放一首经典。恢复后说"换一首"即可。', false);
-    queue = [{ ...fallback, url: '' }];
-    currentIdx = 0;
-    renderQueue();
-    updatePlayerInfo(fallback.label, fallback.album);
+    _failStreak = MAX_FAIL_STREAK; // force circuit open
+    const fb = DEFAULT_FALLBACK[Math.floor(Math.random() * DEFAULT_FALLBACK.length)];
+    showChat('AI 暂时无法连接，为你播放一首经典。', false);
+    queue = [{ label: fb.label, name: fb.name, artists: fb.artists, url: '' }];
+    currentIdx = 0; renderQueue();
+    updatePlayerInfo(fb.label, fb.album);
     _busy = false;
     unlockUI();
-    // Don't auto-retry anymore — user must chat to restart AI flow
-    console.log('[fallback] Max retries reached, waiting for manual input');
   }
 }
 
 // ── Handle AI response ──
 function handleResponse(data) {
-  // Bug 4 fix: reset fallback retry counter on ANY successful AI response
+  // Bug 4 + Plan 2 fix: reset retry counters on ANY successful AI response
   _fallbackCount = 0;
+  _failStreak = 0;
 
   const sysLog = data.system_log || '';
   const djSpeech = data.dj_speech || data.speech || data.monologue || data.say || '';
@@ -211,12 +232,44 @@ function handleResponse(data) {
       playAudio(tr.url);
     }
   } else {
-    showChat(`"${query||'未知'}" 无原唱音源，换一首`, false);
-    _busy = false;
-    unlockUI();
-    setTimeout(refill, 500);
+    // Plan 2: circuit breaker — don't call AI again if search keeps failing
+    _failStreak++;
+    if (_failStreak >= MAX_FAIL_STREAK) {
+      console.log(`[breaker] ${_failStreak} consecutive failures — playing local fallback`);
+      showChat('暂时找不到在线音源，为你播放一首经典。', false);
+      const fallbackQuery = LOCAL_FALLBACK[Math.floor(Math.random() * LOCAL_FALLBACK.length)];
+      // Try ONE local fallback, don't retry AI
+      _busy = false;
+      unlockUI();
+      tryLocalFallback(fallbackQuery);
+    } else {
+      showChat(`"${query||'未知'}" 无原唱音源，换一首`, false);
+      _busy = false;
+      unlockUI();
+      setTimeout(refill, 500);
+    }
   }
 }
+
+// ── Plan 2: Try single local fallback, no AI involved ──
+async function tryLocalFallback(query) {
+  try {
+    const res = await window.claudio.sendMessage(`(system-fallback) 请推荐一首: ${query}`);
+    if (res.ok && res.tracks?.length) {
+      const t = res.tracks[0];
+      if (t.url) {
+        queue = [t]; currentIdx = 0; renderQueue();
+        updatePlayerInfo(t.label||t.name, t.album||'');
+        playAudio(t.url);
+        return;
+      }
+    }
+  } catch {}
+  // Even local fallback failed — just release and wait
+  _failStreak = MAX_FAIL_STREAK; // stays broken until user manually chats
+  setPlayerState('idle');
+}
+
 
 function fadeVol(a, from, to, onDone) {
   if (!a || !a.src || a.src.endsWith('null')) { if (onDone) onDone(); return; }

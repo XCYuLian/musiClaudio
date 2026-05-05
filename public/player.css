@@ -876,3 +876,75 @@ html, body {
   background: #b388ff10;
   box-shadow: 0 0 12px rgba(179,136,255,0.2);
 }
+
+/* ── User Badge ── */
+.user-badge {
+  font-size: 11px; font-weight: 600; color: #69f0ae;
+  padding: 3px 10px;
+  border: 1px solid #69f0ae44;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all .2s;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-app-region: no-drag; /* prevent header drag from eating clicks */
+  position: relative; z-index: 10;
+}
+.user-badge:hover {
+  background: #69f0ae15;
+  box-shadow: 0 0 10px rgba(105,240,174,0.3);
+}
+.user-badge.logged-in {
+  color: #b388ff;
+  border-color: #b388ff55;
+}
+.user-badge.logged-in:hover {
+  box-shadow: 0 0 10px rgba(179,136,255,0.3);
+}
+
+/* ── QR Login Modal ── */
+#qr-overlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+}
+#qr-overlay.hidden { display: none; }
+.qr-modal {
+  background: rgba(10,10,18,0.92);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid #69f0ae33;
+  border-radius: 16px;
+  padding: 28px 32px;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(105,240,174,0.08), 0 8px 32px rgba(0,0,0,0.6);
+  max-width: 320px; width: 90%;
+}
+.qr-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 14px; font-weight: 700; color: #e0e0e0;
+  margin-bottom: 16px;
+}
+.qr-close-btn {
+  background: none; border: none; color: #666; font-size: 16px;
+  cursor: pointer; padding: 2px 6px;
+}
+.qr-close-btn:hover { color: #f44; }
+.qr-image {
+  display: block;
+  width: 200px; min-width: 200px;
+  height: 200px; min-height: 200px;
+  margin: 12px auto;
+  border-radius: 10px;
+  border: 2px solid #69f0ae44;
+  background: #fff;
+  object-fit: contain;
+}
+.qr-status {
+  font-size: 13px; font-weight: 600; color: #69f0ae;
+  margin: 12px 0 8px;
+}
+.qr-hint {
+  font-size: 10px; color: #555;
+  margin-top: 4px;
+}

@@ -48,4 +48,9 @@ contextBridge.exposeInMainWorld('claudio', {
   onLoadState: (callback) => {
     ipcRenderer.on('app:loadState', () => callback());
   },
+
+  // Auth: Netease QR login (non-blocking single ops)
+  checkLogin: () => ipcRenderer.invoke('auth:checkLogin'),
+  getQrCode: () => ipcRenderer.invoke('auth:getQrCode'),
+  checkQrStatus: (key) => ipcRenderer.invoke('auth:checkQrStatus', key),
 });
