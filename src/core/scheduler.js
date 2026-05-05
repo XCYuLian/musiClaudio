@@ -1,12 +1,12 @@
 /**
- * SCHEDULER.JS — Cron + auto-start (CLEAN V2)
+ * SCHEDULER.JS — Cron + auto-start (V2)
  */
 
 const cron = require('node-cron');
 const { buildContext } = require('./context');
-const { askDeepSeek } = require('./claude');
-const { synthesize } = require('./tts');
-const ncm = require('./ncm');
+const { askDeepSeek } = require('../api/deepseek');
+const { synthesize } = require('../api/tts');
+const ncm = require('../api/netease');
 const state = require('./state');
 
 let onTask = null;
@@ -61,14 +61,33 @@ function filterRepeats(tracks) {
   const BLOCKED = ['bonobo','toe','uyama hiroto','nujabes','dj okawari'];
   try {
     const recent = state.getRecentPlays(50);
-    const artists = new Set(recent.map(p => {
-      const d = p.track.indexOf(' - ');
-      return d > 0 ? p.track.slice(0, d).toLowerCase().trim() : '';
-    }).filter(Boolean));
-    BLOCKED.forEach(a => artists.add(a));
+    // Extract both artist names and full track labels from recent plays
+    const recentArtists = new Set();
+    const recentTracks = new Set();
+    recent.forEach(p => {
+      const t = (p.track || '').toLowerCase().trim();
+      if (!t) return;
+      recentTracks.add(t);
+      // Try "Artist - Song" format
+      const dash = t.indexOf(' - ');
+      if (dash > 0) {
+        recentArtists.add(t.slice(0, dash).trim());
+      } else {
+        // Try "Artist Song" by splitting on first space
+        const space = t.indexOf(' ');
+        if (space > 0) recentArtists.add(t.slice(0, space).trim());
+        // Also add the whole string as fallback (might be just artist or just song)
+      }
+    });
+    BLOCKED.forEach(a => recentArtists.add(a));
     return tracks.filter(t => {
-      const a = (t.artists || t.label || '').toLowerCase().trim();
-      return ![...artists].some(x => a.includes(x) || x.includes(a));
+      const label = (t.label || t.name || '').toLowerCase().trim();
+      const artist = (t.artists || '').toLowerCase().trim();
+      // Block if track label was recently played
+      if (recentTracks.has(label)) return false;
+      // Block if artist was recently played
+      if (artist && [...recentArtists].some(x => artist.includes(x) || x.includes(artist))) return false;
+      return true;
     });
   } catch { return tracks; }
 }

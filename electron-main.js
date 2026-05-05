@@ -4,14 +4,14 @@
 
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
-const { start: startScheduler, setCallback, triggerNow } = require('./lib/scheduler');
-const { route } = require('./lib/router');
-const state = require('./lib/state');
-const { importPlaylists, importPlaylistById } = require('./lib/import-netease');
-const profiler = require('./lib/profiler');
+const { start: startScheduler, setCallback, triggerNow } = require('./src/core/scheduler');
+const { route } = require('./src/core/router');
+const state = require('./src/core/state');
+const { importPlaylists, importPlaylistById } = require('./src/core/import-netease');
+const profiler = require('./src/core/profiler');
 const proxy = require('./lib/proxy');
 // .env: use unified paths
-const { ENV_FILE } = require('./lib/paths');
+const { ENV_FILE } = require('./src/core/paths');
 const envPath = ENV_FILE;
 require('dotenv').config({ path: envPath });
 
@@ -189,7 +189,7 @@ function createWindow() {
 
   ipcMain.handle('api:ping', async () => {
     try {
-      const { ping } = require('./lib/ncm');
+      const { ping } = require('./src/api/netease');
       const result = await ping();
       return { ok: result.ok, source: result.source || 'unknown' };
     } catch { return { ok: false }; }
@@ -221,6 +221,9 @@ function pushToRenderer(data) {
   }
 }
 
+// Bug 3 fix: bypass Chrome autoplay restriction
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
 app.whenReady().then(async () => {
   await state.init();
   createWindow();
@@ -231,8 +234,8 @@ app.whenReady().then(async () => {
   });
   startScheduler();
 
-  // Auto-start AI DJ on launch (slight delay for window to load)
-  setTimeout(() => {
+  // Bug 3 fix: wait for renderer DOM ready before auto-start (no arbitrary setTimeout)
+  ipcMain.handle('app:ready', async () => {
     const hour = new Date().getHours();
     const greeting = hour < 6 ? '深夜了，来点 ambient 氛围音乐。'
       : hour < 9 ? '早上好！新的一天开始了，来点清晨音乐。'
@@ -249,7 +252,12 @@ app.whenReady().then(async () => {
         reason: `自启失败：${err.message}。请检查 API Key 是否正确。`,
       });
     });
-  }, 2000);
+    // Also tell renderer to load saved state
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('app:loadState');
+    }
+    return { ok: true };
+  });
 
   // Start UnblockNeteaseMusic proxy for VIP track unlocking
   proxy.start();

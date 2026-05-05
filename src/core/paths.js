@@ -1,8 +1,8 @@
 /**
  * PATHS.JS — Unified path resolver (dev + packaged)
  *
- * In development:  D:\OUTPUT
- * In packaged exe: D:\OUTPUT\release\Claudio
+ * In development:  project root (BASE/)
+ * In packaged exe: exe directory
  *
  * All writable data goes under BASE/data/.
  */
@@ -17,11 +17,11 @@ if (process.versions && process.versions.electron) {
   const { app } = require('electron');
   BASE = app.isPackaged
     ? path.dirname(app.getPath('exe'))   // e.g. D:\OUTPUT\release\Claudio
-    : path.resolve(__dirname, '..');      // project root
+    : path.resolve(__dirname, '../..');   // src/core/ → project root
 } else if (process.pkg) {
   BASE = path.dirname(process.execPath);
 } else {
-  BASE = path.resolve(__dirname, '..');
+  BASE = path.resolve(__dirname, '../..'); // src/core/ → project root
 }
 
 // Ensure base/data directory
@@ -40,7 +40,7 @@ const TTS       = path.join(CACHE, 'tts');
 
 // Individual file paths
 const STATE_DB    = path.join(DATA, 'state.db');
-const SQL_WASM    = path.join(__dirname, 'sql-wasm.wasm');
+const SQL_WASM    = path.join(__dirname, '../../lib/sql-wasm.wasm');
 const PLAYLIST_FILE = path.join(PLAYLISTS, 'liked_songs.json');
 const USER_DIR    = path.join(BASE, 'user');
 const PROMPTS_DIR = path.join(BASE, 'prompts');

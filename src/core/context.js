@@ -1,7 +1,7 @@
 const fs = require('fs/promises');
 const fsSync = require('fs');
 const path = require('path');
-const { getWeather } = require('./weather');
+const { getWeather } = require('../api/weather');
 
 const paths = require('./paths');
 const USER_DIR = paths.USER_DIR;

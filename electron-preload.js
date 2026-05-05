@@ -42,4 +42,10 @@ contextBridge.exposeInMainWorld('claudio', {
   onBroadcast: (callback) => {
     ipcRenderer.on('dj:broadcast', (_event, data) => callback(data));
   },
+
+  // Bug 3 fix: cold start — notify main process DOM is ready
+  notifyReady: () => ipcRenderer.invoke('app:ready'),
+  onLoadState: (callback) => {
+    ipcRenderer.on('app:loadState', () => callback());
+  },
 });

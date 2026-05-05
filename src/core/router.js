@@ -1,11 +1,11 @@
 /**
- * ROUTER.JS — Intent routing / dispatch (CLEAN V2)
+ * ROUTER.JS — Intent routing / dispatch (V2)
  */
 
 const { buildContext } = require('./context');
-const { askDeepSeek } = require('./claude');
-const { synthesize } = require('./tts');
-const ncm = require('./ncm');
+const { askDeepSeek } = require('../api/deepseek');
+const { synthesize } = require('../api/tts');
+const ncm = require('../api/netease');
 const state = require('./state');
 
 const SLASH_CMDS = [
@@ -111,13 +111,26 @@ async function handleChat(input, intent = 'chat') {
 function filterRepeats(tracks) {
   try {
     const recent = state.getRecentPlays(50);
-    const artists = new Set(recent.map(p => {
-      const d = p.track.indexOf(' - ');
-      return d > 0 ? p.track.slice(0, d).toLowerCase().trim() : '';
-    }).filter(Boolean));
+    const recentArtists = new Set();
+    const recentTracks = new Set();
+    recent.forEach(p => {
+      const t = (p.track || '').toLowerCase().trim();
+      if (!t) return;
+      recentTracks.add(t);
+      const dash = t.indexOf(' - ');
+      if (dash > 0) {
+        recentArtists.add(t.slice(0, dash).trim());
+      } else {
+        const space = t.indexOf(' ');
+        if (space > 0) recentArtists.add(t.slice(0, space).trim());
+      }
+    });
     return tracks.filter(t => {
-      const a = (t.artists || t.label || '').toLowerCase().trim();
-      return ![...artists].some(x => a.includes(x) || x.includes(a));
+      const label = (t.label || t.name || '').toLowerCase().trim();
+      const artist = (t.artists || '').toLowerCase().trim();
+      if (recentTracks.has(label)) return false;
+      if (artist && [...recentArtists].some(x => artist.includes(x) || x.includes(artist))) return false;
+      return true;
     });
   } catch { return tracks; }
 }

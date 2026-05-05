@@ -1,10 +1,10 @@
 /**
- * CLAUDE.JS — DeepSeek Adapter (replaces the Claude CLI spinner)
+ * DEEPSEEK.JS — DeepSeek API Adapter
  *
  * Responsibilities:
  * 1. Send assembled prompts to the DeepSeek API (OpenAI-compatible)
  * 2. Enforce STRICT JSON output → strip markdown fences, extract object
- * 3. Validate returned JSON matches the {say, play[], reason, segue} schema
+ * 3. Validate returned JSON matches the {system_log, dj_speech, action_type, search_query} schema
  * 4. Surface actionable errors (HTTP, parse, schema) without crashing the caller
  */
 
@@ -29,7 +29,7 @@ function getToday() {
 
 function checkDailyLimit() {
   try {
-    const state = require('./state');
+    const state = require('../core/state');
     const today = getToday();
     const saved = state.getPref('daily_tokens') || {};
     // Reset if new day
@@ -46,7 +46,7 @@ function checkDailyLimit() {
 
 function addDailyTokens(tokens) {
   try {
-    const state = require('./state');
+    const state = require('../core/state');
     const today = getToday();
     const saved = state.getPref('daily_tokens') || { date: today, used: 0 };
     if (saved.date !== today) saved.used = 0;
@@ -176,7 +176,7 @@ async function askDeepSeek(systemPrompt, userMessage, options = {}) {
   // Resolve model: explicit override > state prefs > env default
   let model = options.model || DEEPSEEK_MODEL;
   try {
-    const state = require('./state');
+    const state = require('../core/state');
     const pref = state.getPref('model');
     if (pref && !options.model) model = pref;
   } catch { /* state not initialized yet, use env default */ }
@@ -187,7 +187,7 @@ async function askDeepSeek(systemPrompt, userMessage, options = {}) {
 
   // Daily rate limit (soft — only log, don't block during dev)
   if (!checkDailyLimit()) {
-    console.warn(`[claude] Daily token limit reached (${DAILY_TOKEN_LIMIT.toLocaleString()} tokens). Continuing anyway.`);
+    console.warn(`[deepseek] Daily token limit reached (${DAILY_TOKEN_LIMIT.toLocaleString()} tokens). Continuing anyway.`);
     // Don't block — just log
   }
 

@@ -9,13 +9,13 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const paths = require('./paths');
+const paths = require('../core/paths');
 
 const CACHE_DIR = paths.TTS;
 
 function getConfig() {
   try {
-    const state = require('./state');
+    const state = require('../core/state');
     return {
       appid: state.getPref('volc_appid') || process.env.VOLC_APPID || '2901907354',
       apikey: state.getPref('volc_apikey') || process.env.VOLC_APIKEY || 'fc1abbc4-29f5-47e0-abcd-fad74d38bc01',

@@ -1,14 +1,14 @@
 /**
  * IMPORT-NETEASE.JS — 网易云歌单导入（可复用模块）
  *
- * Uses ncm.js module (NeteaseCloudMusicApi npm package) directly.
+ * Uses NeteaseCloudMusicApi npm package directly.
  * Defaults to "我喜欢的音乐" only, 1500 tracks max, sorted by artist+title.
  * Outputs to data/playlists/liked_songs.json
  */
 
 const fs = require('fs');
 const path = require('path');
-const ncm = require('./ncm');
+const ncm = require('../api/netease');
 const paths = require('./paths');
 const { getUserPlaylists, getPlaylistDetail } = ncm;
 

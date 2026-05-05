@@ -5,7 +5,7 @@
  * Falls back to .env LAT/LON or Beijing default.
  */
 
-const state = (() => { try { return require('./state'); } catch { return null; } })();
+const state = (() => { try { return require('../core/state'); } catch { return null; } })();
 
 const API = 'https://api.open-meteo.com/v1/forecast';
 

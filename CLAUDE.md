@@ -116,6 +116,12 @@ Git Bash 的 `TEMP=/tmp` 会导致 electron-builder 跨盘失败。
 | 14 | JSON 解析失败 | isLikelyDJResponse 不认识 dj_speech | 加 `dj_speech` 检查 |
 | 15 | AI 输出空 | `result.speech` 实为 `result.dj_speech` | 全替换 |
 | 16 | 台歌不播放 | 路径从 public/ 出发错误 | 用 `../Crt/` |
+| 17 | 切歌死锁 | timeupdate 预取设 `_busy=true` → refill 因 `_busy` 立即返回，锁永不解 | 预取不设锁，让 fetchAI 自己锁 |
+| 18 | AI 并发重叠说话 | 无 TTS 单例控制 + UI 未锁定 → 两段语音同时播 | `_currentTts` 单例 + `lockUI/unlockUI` |
+| 19 | 冷启动盲等 | `setTimeout(loadState,300)` + `setTimeout(auto-start,2000)` 不稳定 | `app:ready` IPC + `commandLine` autoplay 绕过 |
+| 20 | AI 空返回卡死 | DeepSeek 超时无兜底 → `_busy` 永不释放 | `DEFAULT_FALLBACK` 兜底 + 重试 3 次后停止 |
+| 21 | 歌手名不显示 | Web API 返回数据不用 `ar` 字段 | `formatTrack` 兼容 `ar`/`artists`/`artist` 多种格式 |
+| 22 | 重复推歌 | `filterRepeats` 只按 ` - ` 分隔解析歌手，无 ` - ` 的记录全放过 | 双格式解析 + track 名精确去重 |
 
 ## 📖 更多文档
 - `docs/v1_context/architecture.md` — V1 架构详解
