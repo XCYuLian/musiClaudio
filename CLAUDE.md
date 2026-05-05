@@ -57,6 +57,13 @@
 4. `checkEasterEgg()` — 聊天指令彩蛋
 5. `fadeVol()` — DJ 说话时音乐渐弱（最低 15%）
 
+## 📋 阶段规划规则
+
+- 每次阶段性开发操作，在 `plans/` 文件夹创建计划文件
+- 命名递增：`plans/plan1.md` → `plans/plan2.md` → ...
+- 内容：本轮目标、涉及文件、预计步骤、验证方式
+- 完成后在文件中标注完成状态
+
 ## 🔁 重构规则 (V2 新增)
 
 ### 逐个迁移，验证后再迁下一个
@@ -83,7 +90,7 @@ npm run build:portable # 便携版
 ```
 必须在 Windows CMD 中：
   D:
-  cd D:\OUTPUT
+  cd D:\OUTPUT\Claudio
   set TEMP=C:\Users\xc_yulian\AppData\Local\Temp
   npm run build
 ```
