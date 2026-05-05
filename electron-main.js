@@ -340,7 +340,7 @@ app.whenReady().then(async () => {
   });
   startScheduler();
 
-  // Bug 3 fix: wait for renderer DOM ready before auto-start (no arbitrary setTimeout)
+  // Bug 3 fix: renderer signals ready → start cold boot
   ipcMain.handle('app:ready', async () => {
     const hour = new Date().getHours();
     const greeting = hour < 6 ? '深夜了，来点 ambient 氛围音乐。'
@@ -352,13 +352,7 @@ app.whenReady().then(async () => {
       : '晚上好！放点舒缓的音乐。';
     triggerNow('startup', `(auto-boot) ${greeting} 根据现在的时间和我的口味，自动推荐一个播放列表。`).catch(err => {
       console.error('[auto-start] Failed:', err.message);
-      pushToRenderer({
-        type: 'system',
-        say: `Auto-start failed: ${err.message}`,
-        reason: `自启失败：${err.message}。请检查 API Key 是否正确。`,
-      });
     });
-    // Also tell renderer to load saved state
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('app:loadState');
     }

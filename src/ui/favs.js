@@ -58,6 +58,5 @@ document.addEventListener('DOMContentLoaded', () => {
   window.claudio.onBroadcast(data => handleResponse(data));
   // Bug 3 fix: listen for main process loadState signal instead of blind setTimeout
   window.claudio.onLoadState(() => { loadState(); });
-  // Bug 3 fix: notify main process DOM is ready → triggers auto-start with app_start intent
   window.claudio.notifyReady();
 });

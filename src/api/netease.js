@@ -329,11 +329,11 @@ async function resolveTrack(query) {
     const strictMatches = clean.filter(t => artistMatch(expectedArtist, t.artists));
     if (strictMatches.length > 0) {
       console.log(`[netease] Strict artist "${expectedArtist}": ${strictMatches.length}/${clean.length} matches`);
-      clean = strictMatches;  // ONLY use tracks from the specified artist
+      clean = strictMatches;
     } else {
-      // No exact artist match found — fail rather than play a cover
-      console.log(`[netease] No results for artist "${expectedArtist}" — refusing to play cover`);
-      return null;
+      // No exact match — use loose results (artist name might be non-standard)
+      console.log(`[netease] No strict match for "${expectedArtist}" — trying loose results (${clean.length} tracks)`);
+      // Don't return null, use clean results with lower confidence
     }
   }
 

@@ -239,50 +239,22 @@ function handleResponse(data) {
     }
     currentTrack = tr;
     updatePlayerInfo(tr.label||tr.name, tr.album||'', tr.id);
-    const a = document.getElementById('audio');
-    const v = a ? a.volume : 1;
-    const isPlaying = a && a.src && !a.src.endsWith('null') && !a.paused;
-
-    // V2.8: Crossfade — if current song is playing, fade it out during DJ speech, then start new song
+    // Music first, DJ voice-overs after 300ms
+    playAudio(tr.url);
     if (ttsFile && ttsFile.startsWith('data:')) {
-      if (isPlaying) {
-        // Crossfade: duck current song → DJ speaks → at 50% new song fades in
-        fadeVol(a, a.volume, 0.06, () => {
-          const ttsAudio = new Audio(ttsFile);
-          ttsAudio.preload = 'metadata';
-          ttsAudio.addEventListener('loadedmetadata', () => {
-            const point = (ttsAudio.duration || 12) * 700; // 70% DJ over old song tail → new song at 70%
-            // Start new song at 50% of DJ speech, fade in
-            setTimeout(() => {
-              playAudio(tr.url);
-              const newA = document.getElementById('audio');
-              if (newA) { newA.volume = 0.5; fadeVol(newA, 0.5, v, () => {}); }
-            }, half);
-            // Kill this temp audio
-            ttsAudio.src = '';
-          }, { once: true });
-          ttsAudio.src = ttsFile;
-          // Also play actual TTS
-          playTts(ttsFile, v, () => {
+      setTimeout(() => {
+        const a2 = document.getElementById('audio');
+        const v2 = a2 ? a2.volume : 1;
+        fadeVol(a2, v2, 0.08, () => {
+          playTts(ttsFile, v2, () => {
+            const a3 = document.getElementById('audio');
+            if (a3) fadeVol(a3, a3.volume, v2, () => {});
             _busy = false;
             unlockUI();
           });
         });
-      } else {
-        // No song playing → start music, DJ voice-overs
-        playAudio(tr.url);
-        setTimeout(() => {
-          fadeVol(a, v, 0.08, () => {
-            playTts(ttsFile, v, () => {
-              fadeVol(a, a.volume, v);
-              _busy = false;
-              unlockUI();
-            });
-          });
-        }, 300);
-      }
+      }, 300);
     } else {
-      playAudio(tr.url);
       _busy = false;
       unlockUI();
     }

@@ -81,10 +81,16 @@ async function runTask({ trigger, userInput, executionTrace }) {
     let preSearchResults = '';
     let preSearchTracks = [];
     try {
-      const results = await ncm.search(searchQuery, 8);
+      let results = await ncm.search(searchQuery, 8);
+      if (!results.length) {
+        // Retry with bare genre name (no modifier)
+        results = await ncm.search(tag1, 8);
+        console.log(`[scheduler] Pre-search retry: "${tag1}" → ${results.length} tracks`);
+      } else {
+        console.log(`[scheduler] Pre-search: "${searchQuery}" → ${results.length} tracks`);
+      }
       preSearchTracks = results;
       preSearchResults = results.map((t, i) => `${i + 1}. ${t.label}`).join('\n');
-      console.log(`[scheduler] Pre-search: "${searchQuery}" → ${results.length} tracks`);
     } catch { /* pre-search optional */ }
 
     const s = state.getState();
