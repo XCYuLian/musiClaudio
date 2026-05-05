@@ -263,4 +263,3 @@ app.on('window-all-closed', () => {
   proxy.stop();
   app.quit();
 });
-process.on('exit', () => proxy.stop());
