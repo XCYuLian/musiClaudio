@@ -9,6 +9,12 @@ const ncm = require('../api/netease');
 const state = require('./state');
 const { HARD_FALLBACK_IDS } = require('./config');
 
+const FALLBACK_QUERIES = [
+  'Jazz piano trio', 'Bossa Nova guitar', 'Post-rock instrumental',
+  '华语民谣 吉他', 'R&B 律动', 'Lo-fi study beat',
+  'Funk groove', 'Acoustic indie', 'City Pop',
+];
+
 const SLASH_CMDS = [
   { name: 'search',  pattern: /^\/search\s+(.+)/i },
   { name: 'skip',    pattern: /^\/(skip|next)/i },
@@ -74,7 +80,7 @@ async function handleMusic(query) {
   } catch {}
   if (!resolved.length && searchQuery) {
     try {
-      const fb = await ncm.search('Chillwave', 3);
+      const fb = await ncm.search(FALLBACK_QUERIES[Math.floor(Math.random() * FALLBACK_QUERIES.length)], 3);
       if (fb.length) {
         const urlInfo = await ncm.getSongUrl(fb[0].id).catch(() => null);
         if (urlInfo?.url) resolved = [{ ...fb[0], url: urlInfo.url }];
@@ -142,10 +148,10 @@ async function handleChat(input, intent = 'chat') {
     // If filter blocked everything, go hard fallback instead of refill loop
     if (!tracks.length && query) {
       try {
-        const fb = await ncm.search('Chillwave', 3);
+        const fb = await ncm.search(FALLBACK_QUERIES[Math.floor(Math.random() * FALLBACK_QUERIES.length)], 3);
         if (fb.length) {
           const urlInfo = await ncm.getSongUrl(fb[0].id).catch(() => null);
-          if (urlInfo?.url) { tracks = [{ ...fb[0], url: urlInfo.url }]; console.log(`[router] Chillwave fallback: "${fb[0].label}"`); }
+          if (urlInfo?.url) { tracks = [{ ...fb[0], url: urlInfo.url }]; console.log(`[router] fallback: "${fb[0].label}"`); }
         }
       } catch {}
     }

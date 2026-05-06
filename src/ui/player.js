@@ -228,13 +228,13 @@ function initAudio() {
   $('#btn-prev').addEventListener('click', () => { if (!_busy) refill(); });
   $('#btn-next').addEventListener('click', () => { if (!_busy) refill(); });
 
-  a.addEventListener('play', () => { _loggedMid = false; _logged10s = false; $('#icon-play').style.display='none'; $('#icon-pause').style.display=''; setPlayerState('playing'); });
+  a.addEventListener('play', () => { _loggedMid = false; _logged10s = false; _prefetchFired = false; _midStoryFired = false; $('#icon-play').style.display='none'; $('#icon-pause').style.display=''; setPlayerState('playing'); });
   a.addEventListener('pause', () => { $('#icon-play').style.display=''; $('#icon-pause').style.display='none'; if (a.src) setPlayerState('ready'); });
   a.addEventListener('ended', () => { console.log('[player] audio ended → autoNext'); autoNext(); });
   a.addEventListener('error', () => { console.warn('[player] audio error → autoNext'); setPlayerState('idle'); autoNext(); });
 
   let lastSave = 0;
-  let _loggedMid = false, _logged10s = false;
+  let _loggedMid = false, _logged10s = false, _prefetchFired = false, _midStoryFired = false;
   a.addEventListener('timeupdate', () => {
     if (a.duration && isFinite(a.duration)) {
       const pct = (a.currentTime/a.duration*100);
@@ -244,14 +244,16 @@ function initAudio() {
     }
     // Lyric highlight
     updateLyricHighlight(a.currentTime);
-    // V2.8: Mid-song story check (~40-65% of song, wider window)
-    if (a.duration && a.currentTime > a.duration * 0.4 && a.currentTime < a.duration * 0.65 && !_busy) {
+    // V2.8: Mid-song story check (~40-65% of song) — fire once per track
+    if (a.duration && a.currentTime > a.duration * 0.4 && a.currentTime < a.duration * 0.65 && !_busy && !_midStoryFired) {
       if (!_loggedMid) { _loggedMid = true; console.log(`[player] mid-story trigger t=${a.currentTime.toFixed(1)}s`); }
+      _midStoryFired = true;
       if (typeof checkMidStory === 'function') checkMidStory();
     }
-    // Backup prefetch at 10s — only if prefetchNext didn't already get it
-    if (a.duration && a.duration-a.currentTime < 10 && !_busy) {
+    // Backup prefetch at 10s — fire once per track
+    if (a.duration && a.duration-a.currentTime < 10 && !_busy && !_prefetchFired) {
       if (!_logged10s) { _logged10s = true; console.log(`[player] 10s prefetch trigger t=${a.currentTime.toFixed(1)}s remaining=${(a.duration-a.currentTime).toFixed(1)}s`); }
+      _prefetchFired = true;
       if (typeof prefetchNext === 'function') prefetchNext();
     }
     // Seek-to-end → skip
