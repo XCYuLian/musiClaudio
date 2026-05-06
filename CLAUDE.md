@@ -112,8 +112,9 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ### 状态锁
 - ✅ 全局只用 `_busy` 一个布尔锁
-- ✅ `playAudio()` 首行 `_busy = false`
-- ❌ 不引入 `_aiLocked` / 状态机枚举
+- ✅ `playAudio()` 里 `_busy = false`
+- ❌ 不引入 `_aiLocked` / `_aiBusy` / 状态机枚举
+- ⚠️ `_prefetching` 和 `_storyGenerating` 是业务标志位，`fetchAI()` 入口必须检查它们，防止并发烧 Token
 
 ### 必须保留的功能（任何重构不可删）
 1. `initSeek()` — 进度条拖拽
@@ -161,7 +162,7 @@ npm run build:portable # 便携版
 ```
 Git Bash 的 `TEMP=/tmp` 会导致 electron-builder 跨盘失败。
 
-## 🐛 历史 Bug 速查（16 条）
+## 🐛 历史 Bug 速查（45 条）
 
 | # | 现象 | 根因 | 修复 |
 |---|------|------|------|
@@ -208,6 +209,8 @@ Git Bash 的 `TEMP=/tmp` 会导致 electron-builder 跨盘失败。
 | 41 | refill 死循环烧 Token | filter 拦截→空→refill→AI→拦截→死循环 | 拦截后走 Chillwave 兜底 + `_lastRefill` 冷却 |
 | 42 | "刚听过这首"后卡死 | back-to-back reject 调 refill → AI 可能再推同一首 → 熔断停摆 | 直接走 handleFallback 硬兜底 |
 | 43 | handleFallback 引用已删除的 queue | 歌词面板迁移后 queue/currentIdx/renderQueue 全移除 | 重写为 window.claudio.refillQueue IPC |
+| 44 | `_aiBusy` 死锁 → 首次 AI 调用后应用永久停摆 | 引入第二把锁但只在入口设 true，所有 exit path 均未清除 | 删除 `_aiBusy`，回退到只用 `_busy`。互斥改为检查已有的 `_prefetching`/`_storyGenerating` 标志位 |
+| 45 | 启动时 3 路 DeepSeek 并发烧 Token | `playAudio()` 同步触发 `prefetchNext()` + `startBackgroundStory()`，两者无互斥 + scheduler 直接调 `askDeepSeek` 绕过所有锁 | `playAudio` 内 `await prefetchNext()` 后再启动 story；fetchAI/prefetchNext/story 三者互斥检查作为安全网 |
 
 ## 📖 更多文档
 - `docs/v1_context/architecture.md` — V1 架构详解
