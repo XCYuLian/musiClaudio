@@ -43,11 +43,48 @@ const BAD_KEYWORDS = [
 
 // ── Fallback ──
 const HARD_FALLBACK_IDS = [
-  { id: '1813926546', name: 'Lo-Fi Chill', artist: 'Lofi' },
-  { id: '19500000',   name: 'Ambient',     artist: 'Ambient' },
-  { id: '523365012',  name: '轻音乐',      artist: '钢琴曲' },
-  { id: '33894345',   name: 'Rain',        artist: 'Nature' },
-  { id: '186043',     name: '十年',        artist: '陈奕迅' },
+  // ── 器乐/氛围 ──
+  { id: '1813926546', name: 'Lo-Fi Chill',     artist: 'Lofi' },
+  { id: '523365012',  name: '轻音乐',           artist: '钢琴曲' },
+  { id: '442682',     name: '天空の城ラピュタ',   artist: '久石譲' },
+  { id: '492999917',  name: 'Merry Christmas Mr. Lawrence', artist: '坂本龍一' },
+  { id: '1337135204', name: '爵士钢琴',          artist: 'MayPiano' },
+  { id: '406232',     name: 'Luv Letter',       artist: 'DJ Okawari' },
+  // ── 后摇 ──
+  { id: '863073353',  name: '水之湄',            artist: '惘闻' },
+  { id: '385322',     name: 'Lonely God',       artist: '惘闻' },
+  { id: '1831469103', name: '希望像星光一样闪烁',  artist: '文雀' },
+  { id: '31838188',   name: '大雁',             artist: '文雀' },
+  // ── Jazz / Funk ──
+  { id: '5131313',    name: 'Autumn Leaves',    artist: 'Diana Krall' },
+  { id: '703639',     name: 'LOOKING UP',       artist: 'Casiopea' },
+  { id: '436487025',  name: 'Dean Town',        artist: 'Vulfpeck' },
+  { id: '27558051',   name: 'Wait for the Moment', artist: 'Vulfpeck' },
+  { id: '2142410008', name: 'May Ninth',        artist: 'Khruangbin' },
+  { id: '534544513',  name: 'Maria También',    artist: 'Khruangbin' },
+  // ── 电子 ──
+  { id: '348028',     name: '恐怖的房子',         artist: '超级市场' },
+  { id: '347990',     name: 'SOS',              artist: '超级市场' },
+  // ── 华语民谣/摇滚 ──
+  { id: '386830',     name: '大石碎胸口',         artist: '万能青年旅店' },
+  { id: '386844',     name: '杀死那个石家庄人',    artist: '万能青年旅店' },
+  { id: '477251491',  name: '郭源潮',            artist: '宋冬野' },
+  { id: '27646198',   name: '董小姐',            artist: '宋冬野' },
+  { id: '35618531',   name: '旧情人，我是时间的新欢', artist: '尧十三' },
+  { id: '31445772',   name: '理想三旬',          artist: '陈鸿宇' },
+  { id: '463157222',  name: '一如年少模样',       artist: '陈鸿宇' },
+  { id: '25638827',   name: '喜欢寂寞',          artist: '苏打绿' },
+  { id: '28018273',   name: '流浪者之歌',         artist: '陈绮贞' },
+  // ── 华语R&B / 台独 ──
+  { id: '524152311',  name: '神探',             artist: '丁世光' },
+  { id: '420401511',  name: '和你',             artist: '余佳运' },
+  { id: '557579126',  name: '恋恋夏日咏叹',       artist: '阿克江Akin' },
+  { id: '1320101152', name: '海浪',             artist: 'deca joins' },
+  { id: '483378334',  name: '浴室',             artist: 'deca joins' },
+  { id: '1411718813', name: '我是一只鱼',         artist: '落日飞车' },
+  { id: '438462713',  name: 'My Jinji',         artist: '落日飞车' },
+  { id: '2717465891', name: '你知道天空有多蓝',    artist: '椅子乐团' },
+  { id: '150411',     name: '普通朋友 (Live)',    artist: '陶喆' },
 ];
 
 const LOCAL_FALLBACK_QUERIES = ['周杰伦 晴天', '陈奕迅 十年', '林俊杰 江南', '王菲 红豆', '张学友 吻别'];

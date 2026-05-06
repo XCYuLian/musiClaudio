@@ -84,6 +84,7 @@ async function runTask({ trigger, userInput, executionTrace }) {
 
     // Resolve tracks — use pre-search match if available (skip re-search)
     let tracks = [];
+    let failReason = '';
     if (query) {
       const norm = (s) => (s||'').toLowerCase().replace(/ - /g, ' ').replace(/\s+/g, ' ').trim();
       const qNorm = norm(query);
@@ -103,17 +104,34 @@ async function runTask({ trigger, userInput, executionTrace }) {
           const urlInfo = await ncm.getSongUrl(t.id).catch(() => null);
           if (urlInfo?.url) { tracks = [{ ...t, url: urlInfo.url }]; console.log(`[scheduler] preSearch fallback: "${t.label}"`); break; }
         }
+        if (!tracks.length) failReason = 'preSearch exhausted';
+      } else if (!tracks.length && !preSearchTracks.length) {
+        failReason = 'preMatch miss (no preSearch)';
+      } else if (!tracks.length) {
+        failReason = 'preMatch miss';
       }
       // Last resort: full search with AI's query
       if (!tracks.length) {
         try { tracks = await ncm.resolvePlaylist([query]); }
         catch (e) { console.error('[scheduler] resolve:', e.message); }
+        if (!tracks.length && failReason) failReason += ' → resolvePlaylist failed';
+        else if (!tracks.length) failReason = 'resolvePlaylist failed';
       }
-      tracks = state.filterRepeats(tracks);
+      if (tracks.length) {
+        const before = tracks.length;
+        tracks = state.filterRepeats(tracks);
+        if (!tracks.length) failReason = `filterRepeats killed all ${before}`;
+      }
+    } else {
+      failReason = 'no query from AI';
     }
     if (!tracks.length) {
+      console.log(`[scheduler] tracks=0: ${failReason}`);
       const hard = await ncm.resolveHardFallback(HARD_FALLBACK_IDS);
-      if (hard) tracks = [hard];
+      if (hard) {
+        const filtered = state.filterRepeats([hard]);
+        tracks = filtered.length ? filtered : [hard];
+      }
       _schedulerFailStreak++;
     } else {
       _schedulerFailStreak = 0;

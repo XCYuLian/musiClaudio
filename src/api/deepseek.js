@@ -19,6 +19,12 @@ const {
 
 const DEFAULT_API_KEY = 'sk-08fbfccc9bbd47d5822a345706e1b418';
 
+const FALLBACK_QUERIES = [
+  'Jazz piano trio', 'Bossa Nova guitar', 'Post-rock instrumental',
+  '华语民谣 吉他', 'R&B 律动', 'Lo-fi study beat',
+  'Funk groove', 'Acoustic indie', 'City Pop',
+];
+
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -273,7 +279,7 @@ async function askDeepSeek(systemPrompt, userMessage, options = {}) {
             system_log: 'AI fallback',
             dj_speech: '让我为你选一首歌。',
             action_type: 'change_song',
-            search_query: 'Chillwave instrumental',
+            search_query: FALLBACK_QUERIES[Math.floor(Math.random() * FALLBACK_QUERIES.length)],
             _meta: { model: data.model || model, usage: data.usage || null, attempts: attempt + 1, fallback: true },
           };
         }
@@ -310,7 +316,7 @@ async function askDeepSeek(systemPrompt, userMessage, options = {}) {
           system_log: 'AI fallback',
           dj_speech: '让我为你选一首歌。',
           action_type: 'change_song',
-          search_query: 'Chillwave instrumental',
+          search_query: FALLBACK_QUERIES[Math.floor(Math.random() * FALLBACK_QUERIES.length)],
           _meta: { model: data?.model || model, usage: data?.usage || null, attempts: attempt + 1, fallback: true },
         };
       }
