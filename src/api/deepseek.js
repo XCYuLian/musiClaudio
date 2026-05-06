@@ -19,6 +19,10 @@ const {
 
 const DEFAULT_API_KEY = 'sk-08fbfccc9bbd47d5822a345706e1b418';
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /** Read API key: env override > default (for distribution) */
 function getApiKey() {
   return process.env.DEEPSEEK_API_KEY || DEFAULT_API_KEY;
@@ -220,6 +224,12 @@ async function askDeepSeek(systemPrompt, userMessage, options = {}) {
   let lastRawText = '';  // hoisted so retry nudge can reference actual model output
 
   for (let attempt = 0; attempt <= DEEPSEEK_MAX_RETRIES; attempt++) {
+    // Exponential backoff: 1s, 2s, 4s between retries (max 8s)
+    if (attempt > 0) {
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+      console.log(`[deepseek:${callId}] backoff ${delay}ms before retry ${attempt + 1}`);
+      await sleep(delay);
+    }
     try {
       // --- HTTP call (30s timeout to prevent indefinite hang) ---
       const t0 = Date.now();
@@ -305,15 +315,25 @@ async function askDeepSeek(systemPrompt, userMessage, options = {}) {
         };
       }
 
-      // Nudge the model harder on retry: show it what it output + JSON-only demand
-      body.messages.push({
-        role: 'assistant',
-        content: lastRawText || '(empty)',
-      });
-      body.messages.push({
-        role: 'user',
-        content: 'Your previous response was not valid JSON. Output ONLY the JSON object. No markdown. No explanation.',
-      });
+      // Retry strategy depends on error type
+      if (err instanceof EmptyResponseError) {
+        // Empty response = model/backend issue, swap to pro model
+        const fallbackModel = 'deepseek-v4-pro';
+        if (body.model !== fallbackModel) {
+          body.model = fallbackModel;
+          console.log(`[deepseek:${callId}] Empty response → switching to ${fallbackModel}`);
+        }
+      } else if (lastRawText) {
+        // Parse/Schema error: model produced content but not valid JSON. Nudge harder.
+        body.messages.push({
+          role: 'assistant',
+          content: lastRawText.slice(0, 500),
+        });
+        body.messages.push({
+          role: 'user',
+          content: 'Your previous response was not valid JSON. Output ONLY the JSON object. No markdown. No explanation.',
+        });
+      }
     }
   }
 
