@@ -59,4 +59,8 @@ contextBridge.exposeInMainWorld('claudio', {
 
   // V2.8 Storyteller
   tellStory: (trackLabel, lyricSnippet) => ipcRenderer.invoke('story:tell', trackLabel, lyricSnippet),
+
+  // VOX Voice switching
+  getVoices: () => ipcRenderer.invoke('vox:getVoices'),
+  setVoice: (voiceId) => ipcRenderer.invoke('vox:setVoice', voiceId),
 });

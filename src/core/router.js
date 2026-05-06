@@ -72,7 +72,10 @@ async function handleMusic(query) {
   if (!resolved.length && searchQuery) {
     try {
       const fb = await ncm.search('Chillwave', 3);
-      if (fb.length) resolved = [fb[0]];
+      if (fb.length) {
+        const urlInfo = await ncm.getSongUrl(fb[0].id).catch(() => null);
+        if (urlInfo?.url) resolved = [{ ...fb[0], url: urlInfo.url }];
+      }
     } catch {}
   }
   // TTS
@@ -117,7 +120,10 @@ async function handleChat(input, intent = 'chat') {
     if (!tracks.length && query) {
       try {
         const fb = await ncm.search('Chillwave', 3);
-        if (fb.length) tracks = [fb[0]];
+        if (fb.length) {
+          const urlInfo = await ncm.getSongUrl(fb[0].id).catch(() => null);
+          if (urlInfo?.url) tracks = [{ ...fb[0], url: urlInfo.url }];
+        }
       } catch {}
     }
   }
@@ -154,7 +160,7 @@ function filterRepeats(tracks) {
       const label = (t.label || t.name || '').toLowerCase().trim();
       const artist = (t.artists || '').toLowerCase().trim();
       if (recentTracks.has(label)) { console.log(`[router:filter] BLOCKED exact: ${label}`); return false; }
-      if (artist && artist.length >= 3 && [...recentArtists].some(x => x.length >= 3 && (artist.includes(x) || x.includes(artist)))) {
+      if (artist && artist.length >= 4 && [...recentArtists].some(x => x.length >= 4 && (artist.includes(x) || x.includes(artist)))) {
         console.log(`[router:filter] BLOCKED artist: ${artist}`); return false;
       }
       return true;

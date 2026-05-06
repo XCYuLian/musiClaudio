@@ -49,7 +49,7 @@ function initTicker() {
 
 // ── Master Init ──
 document.addEventListener('DOMContentLoaded', () => {
-  initClock(); initDataDrift(); initTicker(); initAudio(); initVisualizer(); initVolume(); initDjVolume(); initChat(); initLogoTap(); renderChat(); renderHistory();
+  initClock(); initDataDrift(); initTicker(); initAudio(); initVisualizer(); initVolume(); initDjVolume(); initVoxPanel(); initChat(); initLogoTap(); renderChat(); renderHistory();
   initSettings(); initFavs();
   $('#btn-min').addEventListener('click',()=>window.claudio.minimize());
   $('#btn-max').addEventListener('click',()=>window.claudio.maximize());

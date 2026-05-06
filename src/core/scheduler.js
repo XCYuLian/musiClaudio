@@ -225,7 +225,7 @@ function filterRepeats(tracks) {
       const label = (t.label || t.name || '').toLowerCase().trim();
       const artist = (t.artists || '').toLowerCase().trim();
       if (recentTracks.has(label)) { console.log(`[filter] BLOCKED (exact match): ${label}`); return false; }
-      if (artist && artist.length >= 3 && [...recentArtists].some(x => x.length >= 3 && (artist.includes(x) || x.includes(artist)))) {
+      if (artist && artist.length >= 4 && [...recentArtists].some(x => x.length >= 4 && (artist.includes(x) || x.includes(artist)))) {
         console.log(`[filter] BLOCKED (artist match): ${artist} in recents`); return false;
       }
       return true;

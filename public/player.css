@@ -165,6 +165,7 @@ html, body {
   padding-left: 100%;
   -webkit-app-region: no-drag;
   animation: ticker-flow 20s linear infinite;
+  transform: translateZ(0); will-change: transform;
 }
 @keyframes flow {
   0%   { background-position: 100% 0; }
@@ -694,6 +695,55 @@ html, body {
   display: flex; align-items: center; gap: 8px;
   padding: 4px 16px 8px; flex-shrink: 0;
 }
+.vox-btn {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 9px; font-weight: 700; letter-spacing: 2px;
+  color: #b388ff88; background: transparent;
+  border: 1px solid #b388ff33; border-radius: 999px;
+  padding: 3px 10px; cursor: pointer;
+  transition: all .2s;
+}
+.vox-btn:hover { color: #b388ff; border-color: #b388ff88; }
+.vox-panel {
+  margin: 0 16px 6px; padding: 10px 12px;
+  border: 1px solid rgba(168,85,247,0.15);
+  border-radius: 10px;
+  background: rgba(10,10,15,0.8);
+}
+.vox-panel.hidden { display: none; }
+.vox-head {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 9px; font-weight: 700; letter-spacing: 2px;
+  color: #b388ff66; margin-bottom: 8px;
+}
+#vox-cards {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.vox-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px; opacity: 0.5;
+  cursor: pointer;
+  transition: all .2s ease;
+}
+.vox-card.active {
+  border: 1px solid rgba(168,85,247,0.8);
+  opacity: 1;
+  box-shadow: 0 0 10px rgba(168,85,247,0.3);
+}
+.vox-card:hover { border-color: rgba(168,85,247,0.4); opacity: 0.8; }
+.vox-card-name {
+  font-size: 13px; font-weight: 700; color: #e0e0e0;
+}
+.vox-card-desc {
+  font-size: 10px; color: #888; margin-top: 2px;
+}
+.vox-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #555; flex-shrink: 0;
+}
+.vox-card.active .vox-dot { background: #a855f7; box-shadow: 0 0 8px rgba(168,85,247,0.5); }
 .dj-vol-label {
   font-family: 'Consolas', 'Courier New', monospace;
   font-size: 9px; font-weight: 700; letter-spacing: 2px;

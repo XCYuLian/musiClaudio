@@ -187,12 +187,13 @@ function drawVisualizer(canvas) {
 
 // ── Audio ──
 function playAudio(url) {
+  // Release previous audio context
+  if (_visAnim) { cancelAnimationFrame(_visAnim); _visAnim = null; }
   const a = $('#audio'); a.src = url; setPlayerState('ready');
   a.play().catch(()=>{});
   _busy = false;
   const label = $('#np-title').textContent + ' - ' + $('#np-artist').textContent;
   addHistory($('#np-title').textContent, $('#np-artist').textContent);
-  // V2.8: start background story generation (async, non-blocking)
   if (typeof startBackgroundStory === 'function') {
     startBackgroundStory(label);
   }

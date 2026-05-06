@@ -206,6 +206,8 @@ Git Bash 的 `TEMP=/tmp` 会导致 electron-builder 跨盘失败。
 | 39 | 最大化按钮失效 | `favs.js` 只绑了 min/close，漏了 max 的 click 事件 | 补 `$('#btn-max').addEventListener` |
 | 40 | 网易云 405 限流 | 预搜索 + resolveTrack + 模块 API 高频调用，NeteaseCloudMusicApi 被限 | `callModule` 60s 静默降级 + 预搜索减半 + refill 30s 冷却 |
 | 41 | refill 死循环烧 Token | filter 拦截→空→refill→AI→拦截→死循环 | 拦截后走 Chillwave 兜底 + `_lastRefill` 冷却 |
+| 42 | "刚听过这首"后卡死 | back-to-back reject 调 refill → AI 可能再推同一首 → 熔断停摆 | 直接走 handleFallback 硬兜底 |
+| 43 | handleFallback 引用已删除的 queue | 歌词面板迁移后 queue/currentIdx/renderQueue 全移除 | 重写为 window.claudio.refillQueue IPC |
 
 ## 📖 更多文档
 - `docs/v1_context/architecture.md` — V1 架构详解

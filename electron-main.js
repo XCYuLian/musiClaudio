@@ -182,6 +182,16 @@ function createWindow() {
     }
   });
 
+  // ── VOX Voice switching ──
+  const { getVoiceProfiles, getCurrentVoiceId, setCurrentVoiceId } = require('./src/api/tts');
+  ipcMain.handle('vox:getVoices', async () => {
+    return { profiles: getVoiceProfiles(), current: getCurrentVoiceId() };
+  });
+  ipcMain.handle('vox:setVoice', async (_event, voiceId) => {
+    setCurrentVoiceId(voiceId);
+    return { ok: true };
+  });
+
   // ── Lyrics ──
   ipcMain.handle('lyric:get', async (_event, trackId) => {
     try {

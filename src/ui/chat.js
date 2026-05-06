@@ -14,13 +14,60 @@ function getTtsGain() {
   const slider = $('#dj-vol-slider');
   return slider ? parseInt(slider.value) / 100 : 1.6;
 }
-// Live update: slider changes immediately affect current TTS
 function initDjVolume() {
   const slider = $('#dj-vol-slider');
   if (!slider) return;
   slider.addEventListener('input', () => {
     if (_ttsGain) _ttsGain.gain.value = getTtsGain();
   });
+}
+
+// ── VOX Voice Matrix ──
+async function initVoxPanel() {
+  const btn = $('#btn-vox');
+  const panel = $('#vox-panel');
+  const cards = $('#vox-cards');
+  if (!btn || !panel || !cards) return;
+
+  // Load voice profiles from main process
+  let profiles = [];
+  let currentId = '';
+  try {
+    const res = await window.claudio.getVoices();
+    profiles = res?.profiles || [];
+    currentId = res?.current || '';
+  } catch {}
+
+  if (!profiles.length) {
+    profiles = [
+      { id: 'saturn_zh_male_shuanglangshaonian_tob', name: '飒爽', desc: '少年感男声 · 清朗明亮' },
+      { id: 'zh_male_m191_uranus_bigtts', name: '磐石', desc: '沉稳男声 · 大气厚重' },
+    ];
+  }
+
+  function render() {
+    cards.innerHTML = profiles.map(p => `
+      <div class="vox-card${p.id === currentId ? ' active' : ''}" data-vid="${p.id}">
+        <div class="vox-dot"></div>
+        <div>
+          <div class="vox-card-name">${p.name}</div>
+          <div class="vox-card-desc">${p.desc}</div>
+        </div>
+      </div>
+    `).join('');
+
+    cards.querySelectorAll('.vox-card').forEach(card => {
+      card.addEventListener('click', async () => {
+        const vid = card.dataset.vid;
+        await window.claudio.setVoice(vid);
+        currentId = vid;
+        render();
+      });
+    });
+  }
+
+  btn.addEventListener('click', () => panel.classList.toggle('hidden'));
+  render();
 }
 
 // ── Retry state (Bug 4 fix: prevent infinite fallback→refill loop) ──
@@ -144,7 +191,6 @@ async function refill() {
   _lastRefill = Date.now();
   // Plan 2: circuit breaker — don't call AI if search keeps failing
   if (_failStreak >= MAX_FAIL_STREAK) {
-    console.log('[breaker] refill blocked — circuit open');
     return;
   }
   const h = new Date().getHours();
@@ -157,29 +203,23 @@ function handleFallback() {
   _fallbackCount++;
   _failStreak++;
   if (_failStreak >= MAX_FAIL_STREAK) {
-    // Circuit breaker: stop all AI calls, play local
-    console.log(`[breaker] AI + search failing (${_failStreak}x) — circuit open`);
-    showChat('AI 暂时无法连接，为你播放一首经典。恢复后说"换一首"即可。', false);
-    const fb = DEFAULT_FALLBACK[Math.floor(Math.random() * DEFAULT_FALLBACK.length)];
-    queue = [{ label: fb.label, name: fb.name, artists: fb.artists, url: '' }];
-    currentIdx = 0; renderQueue();
-    updatePlayerInfo(fb.label, fb.album);
+    console.log(`[breaker] Circuit open (${_failStreak}x) — hard fallback`);
+    showChat('AI 暂时休息，为你播放一首经典。恢复后说"换一首"即可。', false);
     _busy = false;
     unlockUI();
+    // Request main process to play emergency track
+    window.claudio.refillQueue().catch(() => {});
   } else if (_fallbackCount <= MAX_FALLBACK_RETRIES) {
     console.log(`[fallback] AI failed, retry ${_fallbackCount}/${MAX_FALLBACK_RETRIES}`);
     _busy = false;
     unlockUI();
     setTimeout(refill, 2000);
   } else {
-    _failStreak = MAX_FAIL_STREAK; // force circuit open
-    const fb = DEFAULT_FALLBACK[Math.floor(Math.random() * DEFAULT_FALLBACK.length)];
-    showChat('AI 暂时无法连接，为你播放一首经典。', false);
-    queue = [{ label: fb.label, name: fb.name, artists: fb.artists, url: '' }];
-    currentIdx = 0; renderQueue();
-    updatePlayerInfo(fb.label, fb.album);
+    _failStreak = MAX_FAIL_STREAK;
+    showChat('AI 暂时休息，为你播放一首经典。', false);
     _busy = false;
     unlockUI();
+    window.claudio.refillQueue().catch(() => {});
   }
 }
 
@@ -233,8 +273,8 @@ function handleResponse(data) {
     if (lastPlayed && lastPlayed.includes(label)) {
       console.log('[breaker] Back-to-back repeat, skipping:', tr.label);
       showChat('刚听过这首，换一首。', false);
-      _busy = false; unlockUI();
-      setTimeout(refill, 500);
+      // Direct hard fallback — don't risk another AI loop
+      handleFallback();
       return;
     }
     currentTrack = tr;
@@ -262,8 +302,7 @@ function handleResponse(data) {
     // Plan 2: circuit breaker — don't call AI again if search keeps failing
     _failStreak++;
     if (_failStreak >= MAX_FAIL_STREAK) {
-      console.log(`[breaker] ${_failStreak} consecutive failures — playing local fallback`);
-      showChat('暂时找不到在线音源，为你播放一首经典。', false);
+        showChat('暂时找不到在线音源，为你播放一首经典。', false);
       const fallbackQuery = LOCAL_FALLBACK[Math.floor(Math.random() * LOCAL_FALLBACK.length)];
       // Try ONE local fallback, don't retry AI
       _busy = false;
@@ -318,7 +357,6 @@ async function startBackgroundStory(trackLabel) {
   _pendingStory = null;
   _storyTriggered = false;
   if (!trackLabel || _failStreak >= MAX_FAIL_STREAK) { console.log('[story] skipped (breaker)'); return; }
-  console.log('[story] Fetching story for:', trackLabel);
 
   // Collect 2-3 lyric lines as inspiration
   let lyricSnippet = '';
