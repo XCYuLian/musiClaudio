@@ -233,7 +233,7 @@ async function askDeepSeek(systemPrompt, userMessage, options = {}) {
     try {
       // --- HTTP call (30s timeout to prevent indefinite hang) ---
       const t0 = Date.now();
-      console.log(`[deepseek:${callId}] → POST attempt=${attempt+1} model=${model} key=${getApiKey().slice(0,8)}...`);
+      console.log(`[deepseek:${callId}] → POST attempt=${attempt+1} model=${body.model} key=${getApiKey().slice(0,8)}...`);
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), DEEPSEEK_TIMEOUT_MS);
       let response;
