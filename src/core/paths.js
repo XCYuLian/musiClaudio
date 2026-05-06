@@ -1,31 +1,39 @@
 /**
  * PATHS.JS — Unified path resolver (dev + packaged)
  *
- * In development:  project root (BASE/)
- * In packaged exe: exe directory
+ * APP_BASE:  read-only bundled resources (prompts, .env, lib)
+ * DATA_ROOT: writable user data (state.db, playlists, cache, user config)
  *
- * All writable data goes under BASE/data/.
+ * In development both point to the project root.
+ * In packaged builds APP_BASE = resources/app/, DATA_ROOT = exe directory.
  */
 
 const path = require('path');
 const fs = require('fs');
 
 // Detect the runtime base
-let BASE;
+// APP_BASE: read-only bundled resources (prompts, .env, lib, etc.)
+// DATA_ROOT: writable user data (state.db, playlists, cache, user config)
+let APP_BASE, DATA_ROOT;
 if (process.versions && process.versions.electron) {
-  // Electron runtime
   const { app } = require('electron');
-  BASE = app.isPackaged
-    ? path.dirname(app.getPath('exe'))   // e.g. D:\OUTPUT\release\Claudio
-    : path.resolve(__dirname, '../..');   // src/core/ → project root
+  if (app.isPackaged) {
+    APP_BASE  = path.join(path.dirname(app.getPath('exe')), 'resources', 'app');
+    DATA_ROOT = path.dirname(app.getPath('exe'));
+  } else {
+    APP_BASE  = path.resolve(__dirname, '../..');
+    DATA_ROOT = APP_BASE;
+  }
 } else if (process.pkg) {
-  BASE = path.dirname(process.execPath);
+  APP_BASE = path.dirname(process.execPath);
+  DATA_ROOT = APP_BASE;
 } else {
-  BASE = path.resolve(__dirname, '../..'); // src/core/ → project root
+  APP_BASE = path.resolve(__dirname, '../..');
+  DATA_ROOT = APP_BASE;
 }
 
-// Ensure base/data directory
-const DATA = path.join(BASE, 'data');
+// Writable data lives under DATA_ROOT
+const DATA = path.join(DATA_ROOT, 'data');
 if (!fs.existsSync(DATA)) fs.mkdirSync(DATA, { recursive: true });
 
 // Sub-directories
@@ -40,14 +48,16 @@ const TTS       = path.join(CACHE, 'tts');
 
 // Individual file paths
 const STATE_DB    = path.join(DATA, 'state.db');
+// sql-wasm is always relative to this file (bundled under lib/)
 const SQL_WASM    = path.join(__dirname, '../../lib/sql-wasm.wasm');
 const PLAYLIST_FILE = path.join(PLAYLISTS, 'liked_songs.json');
-const USER_DIR    = path.join(BASE, 'user');
-const PROMPTS_DIR = path.join(BASE, 'prompts');
-const ENV_FILE    = path.join(BASE, '.env');
+const USER_DIR    = path.join(DATA_ROOT, 'user');
+const PROMPTS_DIR = path.join(APP_BASE, 'prompts');
+const ENV_FILE    = path.join(APP_BASE, '.env');
 
 module.exports = {
-  BASE,
+  APP_BASE,
+  DATA_ROOT,
   DATA,
   PLAYLISTS,
   CACHE,
