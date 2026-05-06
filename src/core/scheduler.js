@@ -95,6 +95,16 @@ async function runTask({ trigger, userInput, executionTrace }) {
         const urlInfo = await ncm.getSongUrl(preMatch.id).catch(() => null);
         if (urlInfo?.url) tracks = [{ ...preMatch, url: urlInfo.url }];
       }
+      // AI ignored pre-search → random pick from preSearchTracks instead of re-searching
+      if (!tracks.length && preSearchTracks.length) {
+        const shuffled = [...preSearchTracks].sort(() => Math.random() - 0.5);
+        for (const t of shuffled) {
+          if (state.filterRepeats([t]).length === 0) continue;
+          const urlInfo = await ncm.getSongUrl(t.id).catch(() => null);
+          if (urlInfo?.url) { tracks = [{ ...t, url: urlInfo.url }]; console.log(`[scheduler] preSearch fallback: "${t.label}"`); break; }
+        }
+      }
+      // Last resort: full search with AI's query
       if (!tracks.length) {
         try { tracks = await ncm.resolvePlaylist([query]); }
         catch (e) { console.error('[scheduler] resolve:', e.message); }
@@ -102,15 +112,8 @@ async function runTask({ trigger, userInput, executionTrace }) {
       tracks = state.filterRepeats(tracks);
     }
     if (!tracks.length) {
-      for (const t of preSearchTracks) {
-        if (t.label === query || state.filterRepeats([t]).length === 0) continue;
-        const urlInfo = await ncm.getSongUrl(t.id).catch(() => null);
-        if (urlInfo?.url) { tracks = [{ ...t, url: urlInfo.url }]; break; }
-      }
-      if (!tracks.length) {
-        const hard = await ncm.resolveHardFallback(HARD_FALLBACK_IDS);
-        if (hard) tracks = [hard];
-      }
+      const hard = await ncm.resolveHardFallback(HARD_FALLBACK_IDS);
+      if (hard) tracks = [hard];
       _schedulerFailStreak++;
     } else {
       _schedulerFailStreak = 0;

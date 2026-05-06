@@ -174,7 +174,7 @@ async function buildContext(opts = {}) {
     `${getExplorationBias(playlistArtists)}`,
     '',
     (preSearchResults
-      ? `## 🎵 可播曲目（必须从中选一首，原样复制"歌手 歌名"为 search_query）\n\`\`\`\n${preSearchResults}\n\`\`\``
+      ? `## 🎵 可播曲目（只能从中选一首，原样复制"编号. 歌手 歌名"为 search_query。禁止自编曲目。都不合适就选最接近的一首。）\n\`\`\`\n${preSearchResults}\n\`\`\``
       : '## 🎵 请推荐一首歌曲（≤60字 DJ 口播 + 歌手 歌名）'
     ),
     '',
@@ -241,53 +241,20 @@ const EXPLORATION_TIPS = [
 ];
 
 function getExplorationBias(playlistArtists = []) {
-  const shuffled = [...NICHE_GENRES].sort(() => Math.random() - 0.5);
-  const tag1 = shuffled[0];
-  const tag2 = shuffled[1];
-  // Hardcoded artist pool for genre
-  const artists1 = GENRE_ARTIST_MAP[tag1] || '';
-  const artists2 = GENRE_ARTIST_MAP[tag2] || '';
-  // User's playlist artists — pick 4 random as "similar-to" hints
+  const tag = NICHE_GENRES[Math.floor(Math.random() * NICHE_GENRES.length)];
+  const artists = GENRE_ARTIST_MAP[tag] || '';
   const userPool = playlistArtists.length
     ? playlistArtists.sort(() => Math.random() - 0.5).slice(0, 4).join(', ')
     : '';
-  const pick1 = artists1 ? artists1.split(', ').sort(() => Math.random() - 0.5).slice(0, 2).join(', ') : '';
-  const pick2 = artists2 ? artists2.split(', ').sort(() => Math.random() - 0.5).slice(0, 2).join(', ') : '';
+  const pick = artists ? artists.split(', ').sort(() => Math.random() - 0.5).slice(0, 3).join(', ') : '';
   const tip = EXPLORATION_TIPS[Math.floor(Math.random() * EXPLORATION_TIPS.length)];
-  const weather = getWeatherHint();
   const parts = [
-    `🎯 本轮强制融合标签: 【${tag1}】+ 【${tag2}】`,
-    `📋 风格参考池: ${[pick1, pick2].filter(Boolean).join(' | ') || '自由发挥'}`,
+    `🎯 本轮风格方向: 【${tag}】`,
+    `📋 参考艺人: ${pick || '自由发挥'}`,
   ];
   if (userPool) parts.push(`🎧 你的歌单里有这些艺人: ${userPool}。找和他们风格相似但不同的新面孔。`);
-  parts.push(`⚠️ 必须推荐同时具备这两个风格元素的歌曲。`);
   parts.push(`💡 ${tip}`);
-  if (weather) parts.push(`🌤 ${weather}`);
   return parts.join('\n');
-}
-
-function getWeatherHint() {
-  const h = new Date().getHours();
-  const m = new Date().getMonth() + 1;
-  const d = new Date().getDate();
-  // Zodiac sign approximation
-  const zodiac = getZodiac(m, d);
-  if (h < 6) return `凌晨 ${h} 点，适合极度冷静的 Ambient 或 Lo-fi。${zodiac}`;
-  if (h < 9) return `清晨 ${h} 点，适合温柔唤醒的 Acoustic 或 Bossa Nova。${zodiac}`;
-  if (h < 12) return `上午工作时段，推荐专注友好的 Post-Rock 或器乐。${zodiac}`;
-  if (h < 14) return `午餐时间，来点轻松的 Jazz 或 City Pop。${zodiac}`;
-  if (h < 17) return `下午提神，适合 Funk、Neo-Soul 或 Afrobeat。${zodiac}`;
-  if (h < 19) return `傍晚放松，推荐 Dream Pop 或 Chillwave。${zodiac}`;
-  if (h < 22) return `夜晚氛围，来点 Trip-Hop 或 Ambient Techno。${zodiac}`;
-  return `深夜 ${h} 点，适合极简 Ambient 或 Lo-fi。${zodiac}`;
-}
-
-function getZodiac(month, day) {
-  const signs = ['摩羯座','水瓶座','双鱼座','白羊座','金牛座','双子座','巨蟹座','狮子座','处女座','天秤座','天蝎座','射手座'];
-  const cuts = [20,19,21,20,21,22,23,23,23,24,23,22];
-  let idx = month - 1;
-  if (day < cuts[idx]) idx = (idx + 11) % 12;
-  return `今日星座运势参考: ${signs[idx]}`;
 }
 
 function getLikedSongsHint() {
