@@ -15,7 +15,7 @@ const DAILY_TOKEN_LIMIT = parseInt(process.env.DAILY_TOKEN_LIMIT) || 100000;
 
 // ── Circuit Breaker ──
 const MAX_FAIL_STREAK = 3;
-const MAX_SCHEDULER_FAILS = 1;
+const MAX_SCHEDULER_FAILS = 3;
 const MAX_FALLBACK_RETRIES = 3;
 const REFILL_COOLDOWN_MS = 30000;
 

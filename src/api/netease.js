@@ -52,8 +52,7 @@ async function callModule(name, query = {}) {
     }
     return res;
   } catch (e) {
-    // Any error = throttle for 60s, fall back to web API
-    _moduleThrottled = Date.now();
+    // Only throttle on 405 (handled in try block). Transient errors should not disable module for 60s.
     throw e;
   }
 }
