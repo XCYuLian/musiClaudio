@@ -211,13 +211,12 @@ function playAudio(url) {
   _busy = false;
   const label = $('#np-title').textContent + ' - ' + $('#np-artist').textContent;
   addHistory($('#np-title').textContent, $('#np-artist').textContent);
-  // Start prefetching next track immediately (background, non-blocking)
+  // Start prefetch + story sequentially (avoids concurrent DeepSeek calls)
   if (typeof _nextTrack !== 'undefined') _nextTrack = null;
-  if (typeof prefetchNext === 'function') prefetchNext();
-  // Story generation
-  if (typeof startBackgroundStory === 'function') {
-    startBackgroundStory(label);
-  }
+  (async () => {
+    if (typeof prefetchNext === 'function') await prefetchNext();
+    if (typeof startBackgroundStory === 'function') startBackgroundStory(label);
+  })();
 }
 
 function initAudio() {

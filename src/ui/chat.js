@@ -192,6 +192,8 @@ function playTts(ttsFile, volume, onEnd) {
 // ── AI Fetch ──
 async function fetchAI(msg, hidden) {
   if (_busy) { console.log('[chat] fetchAI blocked: _busy=true'); return; }
+  if (_prefetching) { console.log('[chat] fetchAI blocked: prefetching'); return; }
+  if (typeof _storyGenerating !== 'undefined' && _storyGenerating) { console.log('[chat] fetchAI blocked: story generating'); return; }
   console.log(`[chat] fetchAI START msg="${msg.slice(0,40)}..."`);
   _busy = true;
   lockUI();
@@ -216,6 +218,7 @@ let _nextTrack = null;
 let _prefetching = false;
 
 async function prefetchNext() {
+  if (_busy) { console.log('[chat] prefetch skip: _busy=true'); return; }
   if (_prefetching || _nextTrack) { console.log(`[chat] prefetch skip: prefetching=${_prefetching} hasNext=${!!_nextTrack}`); return; }
   if (_failStreak >= MAX_FAIL_STREAK) { console.log('[chat] prefetch skip: circuit open'); return; }
   if (typeof _coldBooting !== 'undefined' && _coldBooting) { console.log('[chat] prefetch skip: cold booting'); return; }
@@ -427,6 +430,8 @@ let _storyGenerating = false;  // prevent concurrent generation
 // Called after playAudio: start async story generation
 async function startBackgroundStory(trackLabel) {
   if (_storyGenerating) { console.log('[chat] story skip: already generating'); return; }
+  if (_prefetching) { console.log('[chat] story skip: prefetching'); return; }
+  if (_busy) { console.log('[chat] story skip: _busy=true'); return; }
   console.log(`[chat] story START label="${trackLabel?.slice(0,40)}" lyricLines=${_lyricLines?.length||0}`);
   _storyGenerating = true;
   _pendingStory = null;
