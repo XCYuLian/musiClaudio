@@ -21,6 +21,8 @@ let currentTrack = null, playerState = 'idle', lang = localStorage.getItem('clau
 let chatMessages = [], playHistory = JSON.parse(localStorage.getItem('claudio_history') || '[]');
 let _recent = [], _busy = false;
 let _lyricLines = [];  // parsed LRC array
+// One-shot flags for timeupdate state transitions (reset on play)
+let _loggedMid = false, _logged10s = false, _prefetchFired = false, _midStoryFired = false, _seekFired = false, _autoNextFired = false;
 
 // ── i18n ──
 const T = {
@@ -234,7 +236,6 @@ function initAudio() {
   a.addEventListener('error', () => { if (_autoNextFired) return; console.warn('[player] audio error → autoNext'); setPlayerState('idle'); autoNext(); });
 
   let lastSave = 0;
-  let _loggedMid = false, _logged10s = false, _prefetchFired = false, _midStoryFired = false, _seekFired = false, _autoNextFired = false;
   a.addEventListener('timeupdate', () => {
     if (a.duration && isFinite(a.duration)) {
       const pct = (a.currentTime/a.duration*100);
