@@ -185,7 +185,6 @@ async function buildContext(opts = {}) {
     '## 规则',
     '- chat_only=闲聊不切歌 / change_song=推荐并切歌',
     '- 70%新发现+30%熟悉，50%华语/亚洲，回避⏳近期列表',
-    '- 永久禁止推荐以下艺人（即使风格匹配也不得推荐）：bonobo, toe, uyama hiroto, nujabes, dj okawari',
     '- 开场不要直接报歌名，先描绘生活化画面',
   ].filter(b => b !== '').join('\n');
 
@@ -210,7 +209,7 @@ const NICHE_GENRES = [
 ];
 // Artist map: give AI concrete names to explore, not just abstract genres
 const GENRE_ARTIST_MAP = {
-  'Lo-fi Hip Hop': 'J Dilla, 丁世光, 国蛋, 李权哲, 9m88, C-Block',
+  'Lo-fi Hip Hop': 'Nujabes, J Dilla, DJ Okawari, 丁世光, 国蛋, 李权哲, 9m88, C-Block',
   'Vaporwave': '2814, 猫 シ Corp, Yung Bae, Night Tempo, 银河骑士, 传琦SAMA, 李老板, 音速行星',
   'City Pop': 'Mariya Takeuchi, Tatsuro Yamashita, Anri, 大貫妙子, 杏里, 当山瞳, 具岛直子, 竹内美宥',
   '采样艺术': 'The Avalanches, DJ Shadow, Madlib, Knxwledge, 小老虎, 也是福, Itsogoo, 精气神',
@@ -225,7 +224,7 @@ const GENRE_ARTIST_MAP = {
   'Chillwave': 'Washed Out, Toro Y Moi, Neon Indian, 香料SPICE, 卧轨的火车, 白纸扇, 海朋森',
   'Synthwave': 'Kavinsky, The Midnight, FM-84, 音速行星, 白鲸乐队, 新裤子, 大波浪, 重塑雕像的权利',
   'Indie Folk': 'Bon Iver, Sufjan Stevens, Iron & Wine, 万能青年旅店, 五条人, 陈鸿宇, 尧十三, 宋冬野, 张玮玮',
-  'Math Rock': 'Tricot, American Football, CHON, 大象体操, LITE, 国足, 话梅鹿, 鬼否, Fayzz',
+  'Math Rock': 'toe, Tricot, American Football, CHON, 大象体操, LITE, 国足, 话梅鹿, 鬼否, Fayzz',
   'Afrobeat': 'Fela Kuti, Burna Boy, Wizkid, Antibalas, Tony Allen, Seun Kuti, Ebo Taylor',
   'Latin Jazz': 'Irakere, Buena Vista Social Club, Tito Puente, Cal Tjader, Ray Barretto, Mongo Santamaria',
   'Funk/Soul': 'Stevie Wonder, Vulfpeck, Khruangbin, 方大同, 李荣浩, 9m88, 问题总部, 橘子海, 马念先',

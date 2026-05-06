@@ -210,7 +210,6 @@ function getState() {
 }
 
 // ── Shared filter: block recently played tracks & artists ──
-const { PERMA_BLOCKED_ARTISTS } = require('./config');
 
 function filterRepeats(tracks) {
   if (!tracks || !tracks.length) return [];
@@ -225,7 +224,7 @@ function filterRepeats(tracks) {
       const dash = t.indexOf(' - ');
       if (dash > 0) recentArtists.add(t.slice(0, dash).trim());
     });
-    PERMA_BLOCKED_ARTISTS.forEach(a => recentArtists.add(a));
+    // (perma-block removed — user's actual taste)
 
     const filtered = tracks.filter(t => {
       const label = (t.label || t.name || '').toLowerCase().trim();

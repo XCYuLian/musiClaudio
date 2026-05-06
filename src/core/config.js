@@ -53,7 +53,7 @@ const HARD_FALLBACK_IDS = [
 const LOCAL_FALLBACK_QUERIES = ['周杰伦 晴天', '陈奕迅 十年', '林俊杰 江南', '王菲 红豆', '张学友 吻别'];
 
 // ── Dedup ──
-const PERMA_BLOCKED_ARTISTS = ['bonobo', 'toe', 'uyama hiroto', 'nujabes', 'dj okawari'];
+// (removed — user likes these artists)
 
 module.exports = {
   DEEPSEEK_API_URL, DEEPSEEK_MODEL, DEEPSEEK_MAX_RETRIES, DEEPSEEK_TIMEOUT_MS,
@@ -63,5 +63,4 @@ module.exports = {
   FADE_STEPS, FADE_DURATION_MS, FADE_MIN_VOLUME, TTS_DELAY_MS, REFILL_PRE_FETCH_SEC,
   MODULE_THROTTLE_MS, SEARCH_LIMIT, BAD_KEYWORDS,
   HARD_FALLBACK_IDS, LOCAL_FALLBACK_QUERIES,
-  PERMA_BLOCKED_ARTISTS,
 };
