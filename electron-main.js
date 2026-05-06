@@ -49,6 +49,11 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'public', 'player.html'));
 
+  // Forward renderer console to main process terminal (debugging)
+  mainWindow.webContents.on('console-message', (_e, _level, message) => {
+    console.log(`[renderer] ${message}`);
+  });
+
   // Window controls via IPC
   ipcMain.on('win:minimize', () => mainWindow.minimize());
   ipcMain.on('win:maximize', () => {
