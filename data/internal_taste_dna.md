@@ -20,7 +20,7 @@
 - **Morning / Focus**: jazz, lofi, instrumental
 - **Afternoon / Energy**: hip-hop, rock, electronic
 - **Evening / Wind-down**: r&b, neo-soul, dream pop
-- **Late Night / Deep**: ambient, downtempo, experimental
+- **Late Night / Deep**: r&b, hip-hop, neo-soul
 
 ### Constraints
 - This DNA defines TASTE DIRECTION, not a playlist. You decide which specific artists to recommend.

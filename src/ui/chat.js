@@ -127,6 +127,8 @@ function unlockUI() {
   if (send)  { send.disabled = false;  send.style.opacity = ''; }
   if (prev)  { prev.disabled = false;  prev.style.opacity = ''; }
   if (next)  { next.disabled = false;  next.style.opacity = ''; }
+  // Deferred retry: user message queued during prefetch/story → fire now
+  setTimeout(retryPendingMsg, 100);
 }
 
 // ── TTS safe play (Bug 2 fix: kill old TTS before new, ensure unlock on end) ──
@@ -189,11 +191,27 @@ function playTts(ttsFile, volume, onEnd) {
   });
 }
 
+// ── Pending user message queue (deferred retry when blocked by prefetch/story) ──
+let _pendingUserMsgs = [];
+
 // ── AI Fetch ──
-async function fetchAI(msg, hidden) {
-  if (_busy) { console.log('[chat] fetchAI blocked: _busy=true'); return; }
-  if (_prefetching) { console.log('[chat] fetchAI blocked: prefetching'); return; }
-  if (typeof _storyGenerating !== 'undefined' && _storyGenerating) { console.log('[chat] fetchAI blocked: story generating'); return; }
+async function fetchAI(msg, hidden, userInitiated = false) {
+  if (_busy) {
+    console.log(`[chat] fetchAI blocked: _busy=true → queueing${userInitiated ? ' (user)' : ''}`);
+    _pendingUserMsgs.push({ msg, hidden, at: Date.now(), userInitiated });
+    return;
+  }
+  if (_prefetching) {
+    console.log(`[chat] fetchAI blocked: prefetching → queueing${userInitiated ? ' (user)' : ''}`);
+    _pendingUserMsgs.push({ msg, hidden, at: Date.now(), userInitiated });
+    return;
+  }
+  if (typeof _storyGenerating !== 'undefined' && _storyGenerating) {
+    console.log(`[chat] fetchAI blocked: story generating → queueing${userInitiated ? ' (user)' : ''}`);
+    _pendingUserMsgs.push({ msg, hidden, at: Date.now(), userInitiated });
+    return;
+  }
+  _pendingUserMsgs = [];
   console.log(`[chat] fetchAI START msg="${msg.slice(0,40)}..."`);
   _busy = true;
   lockUI();
@@ -209,6 +227,26 @@ async function fetchAI(msg, hidden) {
     showChat(t('connError'), false);
     handleFallback();
   }
+}
+
+function retryPendingMsg() {
+  if (!_pendingUserMsgs.length) return;
+  if (_busy || _prefetching || (typeof _storyGenerating !== 'undefined' && _storyGenerating)) return;
+  // Prefer user-initiated messages, then take last
+  const userMsgs = _pendingUserMsgs.filter(e => e.userInitiated);
+  const entry = userMsgs.length ? userMsgs[userMsgs.length - 1] : _pendingUserMsgs[_pendingUserMsgs.length - 1];
+  const dropped = _pendingUserMsgs.length - 1;
+  if (dropped > 0) console.log(`[chat] retryPendingMsg → dropped ${dropped} older`);
+  _pendingUserMsgs = [];
+  // TTL: drop if queued > 60s (context expired)
+  if (Date.now() - entry.at > 60000) { console.log('[chat] retryPendingMsg → expired'); return; }
+  console.log(`[chat] retryPendingMsg: "${entry.msg.slice(0,40)}..."${entry.userInitiated ? ' (user)' : ''}`);
+  // Discard prefetched track — user correction overrides it
+  if (typeof _nextTrack !== 'undefined' && _nextTrack) {
+    console.log('[chat] retryPendingMsg → discard prefetched _nextTrack');
+    _nextTrack = null;
+  }
+  fetchAI(entry.msg, entry.hidden);
 }
 
 let _lastRefill = 0;
@@ -237,6 +275,7 @@ async function prefetchNext() {
     }
   } catch(e) { console.warn(`[chat] prefetch FAIL: ${e.message}`); }
   _prefetching = false;
+  setTimeout(retryPendingMsg, 0);
 }
 
 async function refill() {
@@ -464,6 +503,7 @@ async function startBackgroundStory(trackLabel) {
     }
   } catch (e) { console.warn(`[chat] story FAIL: ${e.message}`); }
   _storyGenerating = false;
+  setTimeout(retryPendingMsg, 0);
 }
 
 // Called from timeupdate at ~50%: output story timed to TTS playback
@@ -610,7 +650,7 @@ function initChat() {
       }
       input.value=''; return;
     }
-    fetchAI(m,'');
+    fetchAI(m, '', true);
   });
   input.addEventListener('keydown',e=>{if(e.key==='Enter')btn.click();});
 }

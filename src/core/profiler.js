@@ -144,7 +144,7 @@ ${genreHints || '- Explore broadly across all genres'}
 - **Morning / Focus**: ${pickScene(topGenres, ['lofi', 'jazz', 'folk', 'classical'])}
 - **Afternoon / Energy**: ${pickScene(topGenres, ['rock', 'pop', 'hiphop', 'electronic'])}
 - **Evening / Wind-down**: ${pickScene(topGenres, ['r&b', 'jazz', 'folk', 'lofi'])}
-- **Late Night / Deep**: ${pickScene(topGenres, ['ambient', 'electronic', 'classical', 'lofi'])}
+- **Late Night / Deep**: ${pickScene(topGenres, ['r&b', 'hiphop', 'electronic', 'lofi'])}
 
 ### Constraints
 - This DNA defines TASTE DIRECTION, not a playlist. You decide which specific artists to recommend.

@@ -228,13 +228,13 @@ function initAudio() {
   $('#btn-prev').addEventListener('click', () => { if (!_busy) refill(); });
   $('#btn-next').addEventListener('click', () => { if (!_busy) refill(); });
 
-  a.addEventListener('play', () => { _loggedMid = false; _logged10s = false; _prefetchFired = false; _midStoryFired = false; $('#icon-play').style.display='none'; $('#icon-pause').style.display=''; setPlayerState('playing'); });
-  a.addEventListener('pause', () => { $('#icon-play').style.display=''; $('#icon-pause').style.display='none'; if (a.src) setPlayerState('ready'); });
-  a.addEventListener('ended', () => { console.log('[player] audio ended → autoNext'); autoNext(); });
-  a.addEventListener('error', () => { console.warn('[player] audio error → autoNext'); setPlayerState('idle'); autoNext(); });
+  a.addEventListener('play', () => { _loggedMid = false; _logged10s = false; _prefetchFired = false; _midStoryFired = false; _seekFired = false; _autoNextFired = false; $('#icon-play').style.display='none'; $('#icon-pause').style.display=''; setPlayerState('playing'); });
+  a.addEventListener('pause', () => { $('#icon-play').style.display=''; $('#icon-pause').style.display='none'; if (a.src && playerState === 'playing') setPlayerState('ready'); });
+  a.addEventListener('ended', () => { if (_autoNextFired) return; console.log('[player] audio ended → autoNext'); autoNext(); });
+  a.addEventListener('error', () => { if (_autoNextFired) return; console.warn('[player] audio error → autoNext'); setPlayerState('idle'); autoNext(); });
 
   let lastSave = 0;
-  let _loggedMid = false, _logged10s = false, _prefetchFired = false, _midStoryFired = false;
+  let _loggedMid = false, _logged10s = false, _prefetchFired = false, _midStoryFired = false, _seekFired = false, _autoNextFired = false;
   a.addEventListener('timeupdate', () => {
     if (a.duration && isFinite(a.duration)) {
       const pct = (a.currentTime/a.duration*100);
@@ -256,8 +256,9 @@ function initAudio() {
       _prefetchFired = true;
       if (typeof prefetchNext === 'function') prefetchNext();
     }
-    // Seek-to-end → skip
-    if (a.duration>5 && a.currentTime >= a.duration-0.5) {
+    // Seek-to-end → skip (one-shot: fire once per track end)
+    if (a.duration>5 && a.currentTime >= a.duration-0.5 && !_seekFired) {
+      _seekFired = true;
       console.log(`[player] seek-to-end t=${a.currentTime.toFixed(1)}s → autoNext`);
       a.pause(); autoNext();
     }
@@ -269,6 +270,8 @@ function initAudio() {
 }
 
 function autoNext() {
+  if (_autoNextFired) { console.log('[player] autoNext blocked: already fired'); return; }
+  _autoNextFired = true;
   setPlayerState('idle');
   if (_coldBooting) { console.log('[player] autoNext blocked: cold booting'); return; }
   // Prefetched track ready → play instantly, no AI wait

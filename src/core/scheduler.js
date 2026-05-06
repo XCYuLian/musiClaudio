@@ -44,9 +44,11 @@ async function runTask({ trigger, userInput, executionTrace }) {
 
     // Pre-search Netease: give AI real songs to pick from
     const nicheTags = [
-      'City Pop', 'Neo-Soul', 'Jazz Fusion', 'Lo-fi Hip Hop', 'Dream Pop',
-      'Trip-Hop', 'Bossa Nova', 'Chillwave', 'Synthwave', 'Indie Folk',
-      'Math Rock', 'Afrobeat', 'Funk Soul', 'Psychedelic Rock', 'Ambient',
+      '中文说唱', 'Boom Bap 嘻哈', '华语R&B', 'Alt R&B', 'Neo-Soul',
+      'Lo-fi Hip Hop', 'City Pop', 'Jazz Fusion', 'Funk Soul', 'Dream Pop',
+      'Indie Folk', 'Trip-Hop', 'Afrobeat', 'Synthwave', 'Post-Rock 后摇',
+      '独立摇滚', '华语流行', '电子 Electronic', '民谣 Folk', 'Soul 灵魂乐',
+      'Disco', 'Blues 蓝调', '摇滚 Rock', 'Reggae 雷鬼', 'K-Pop',
     ];
     const tag1 = nicheTags[Math.floor(Math.random() * nicheTags.length)];
     const modifiers = ['精选', '冷门', '小众', '独立', '地下', '氛围', '深夜', '迷幻', '治愈', '律动'];

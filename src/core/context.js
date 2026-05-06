@@ -201,14 +201,21 @@ async function buildContext(opts = {}) {
 // Exploration bias — random niche genre injection (Plan 3: diversity)
 // ---------------------------------------------------------------------------
 const NICHE_GENRES = [
+  '中文说唱', 'Boom Bap 嘻哈', '华语R&B', 'Alt R&B', 'Neo-Soul',
   'Lo-fi Hip Hop', 'Vaporwave', 'City Pop', '采样艺术/Sample-based',
-  'Shoegaze', 'Dream Pop', 'Post-Rock 后摇', 'Neo-Soul',
-  'Trip-Hop', 'Ambient Techno', 'Jazz Fusion', 'Bossa Nova',
-  'Chillwave', 'Synthwave', 'Indie Folk', 'Math Rock',
+  'Shoegaze', 'Dream Pop', 'Post-Rock 后摇', 'Trip-Hop',
+  'Jazz Fusion', 'Bossa Nova', 'Synthwave', 'Indie Folk',
   'Afrobeat', 'Latin Jazz', 'Funk/Soul', 'Psychedelic Rock',
+  '独立摇滚', '华语流行', '电子 Electronic', '民谣 Folk', 'Soul 灵魂乐',
+  'Disco', 'Blues 蓝调', '摇滚 Rock', 'Punk 朋克', 'Reggae 雷鬼',
+  '国风/中国风', 'J-Pop/J-Rock', 'K-Pop', 'House/Techno',
 ];
 // Artist map: give AI concrete names to explore, not just abstract genres
 const GENRE_ARTIST_MAP = {
+  '中文说唱': '小老虎, Jony J, GAI, 马思唯, Higher Brothers, C-Block, 功夫胖, 刘聪, 艾热, 王以太, 派克特, 龙胆紫, 阴三儿, 小安迪, 法老, 弹壳, AR刘夫阳',
+  'Boom Bap 嘻哈': 'Nas, Wu-Tang Clan, Mobb Deep, A Tribe Called Quest, 龙胆紫, 黄硕, 小老虎, 精气神, Itsogoo, 国蛋, 蛋堡, 小人',
+  '华语R&B': '陶喆, 方大同, 丁世光, 余佳运, 吕彦良, 9m88, 阿克江Akin, 地磁卡, 孙盛希, OZI, J.Sheon, 李权哲, 鹤TheCrane',
+  'Alt R&B': 'Frank Ocean, SZA, Daniel Caesar, Blood Orange, 阿克江Akin, 地磁卡, 吕彦良, 孙盛希, OZI, 鹤TheCrane',
   'Lo-fi Hip Hop': 'Nujabes, J Dilla, DJ Okawari, 丁世光, 国蛋, 李权哲, 9m88, C-Block',
   'Vaporwave': '2814, 猫 シ Corp, Yung Bae, Night Tempo, 银河骑士, 传琦SAMA, 李老板, 音速行星',
   'City Pop': 'Mariya Takeuchi, Tatsuro Yamashita, Anri, 大貫妙子, 杏里, 当山瞳, 具岛直子, 竹内美宥',
@@ -218,26 +225,37 @@ const GENRE_ARTIST_MAP = {
   'Post-Rock 后摇': 'Sigur Rós, Mogwai, MONO, 惘闻, 沼泽, 文雀, 琥珀, 时过夏末, 甜梅号, 穿越稜镜',
   'Neo-Soul': 'Erykah Badu, D\'Angelo, Anderson .Paak, 丁世光, 余佳运, 吕彦良, 地磁卡, 阿克江Akin, 陶喆, 方大同',
   'Trip-Hop': 'Massive Attack, Portishead, Tricky, Morcheeba, 超级市场, 龙宽九段, 星期三旅行, 虎子',
-  'Ambient Techno': 'Aphex Twin, Boards of Canada, Susumu Yokota, 白水, FM3, 窦唯(暮良文王), 王凡, 林强',
   'Jazz Fusion': 'Casiopea, T-Square, Masayoshi Takanaka, Hiromi, 顾忠山, 秦四风, J3 Trio, 红节奏, TTechmak',
   'Bossa Nova': 'Antonio Carlos Jobim, João Gilberto, Lisa Ono, 小野丽莎, 王若琳, 彭靖惠, 叶树茵, Joanna Wang',
-  'Chillwave': 'Washed Out, Toro Y Moi, Neon Indian, 香料SPICE, 卧轨的火车, 白纸扇, 海朋森',
   'Synthwave': 'Kavinsky, The Midnight, FM-84, 音速行星, 白鲸乐队, 新裤子, 大波浪, 重塑雕像的权利',
   'Indie Folk': 'Bon Iver, Sufjan Stevens, Iron & Wine, 万能青年旅店, 五条人, 陈鸿宇, 尧十三, 宋冬野, 张玮玮',
-  'Math Rock': 'toe, Tricot, American Football, CHON, 大象体操, LITE, 国足, 话梅鹿, 鬼否, Fayzz',
   'Afrobeat': 'Fela Kuti, Burna Boy, Wizkid, Antibalas, Tony Allen, Seun Kuti, Ebo Taylor',
   'Latin Jazz': 'Irakere, Buena Vista Social Club, Tito Puente, Cal Tjader, Ray Barretto, Mongo Santamaria',
   'Funk/Soul': 'Stevie Wonder, Vulfpeck, Khruangbin, 方大同, 李荣浩, 9m88, 问题总部, 橘子海, 马念先',
   'Psychedelic Rock': 'Tame Impala, King Gizzard, Khruangbin, 晕盖Gatsby, 鸟撞Birdstriking, 疯医, 海朋森, 脏手指',
+  '独立摇滚': 'Arcade Fire, The Strokes, Arctic Monkeys, 万能青年旅店, 声音碎片, 刺猬,  Carsick Cars, 海朋森, 鸟撞, 卧轨的火车',
+  '华语流行': '周杰伦, 林俊杰, 陈奕迅, 邓紫棋, 孙燕姿, 王菲, 蔡依林, 张惠妹, 五月天, 苏打绿',
+  '电子 Electronic': 'Aphex Twin, Boards of Canada, Four Tet, 超级市场, 白水, 窦唯, 林强, 虎子, FM3, 王凡',
+  '民谣 Folk': '宋冬野, 尧十三, 陈鸿宇, 张玮玮, 万能青年旅店, 五条人, 野孩子, 周云蓬, 万晓利, 小河',
+  'Soul 灵魂乐': 'Aretha Franklin, Marvin Gaye, Stevie Wonder, 方大同, 袁娅维, 丁世光, 9m88, 李权哲',
+  'Disco': 'Bee Gees, Donna Summer, Chic, 新裤子, 马赛克, 大波浪, 重塑雕像的权利, 张蔷',
+  'Blues 蓝调': 'B.B. King, Muddy Waters, John Lee Hooker, 杭天, 弥藏, 浪荡绅士, 张岭, 潘高峰',
+  '摇滚 Rock': 'Led Zeppelin, Pink Floyd, Queen, 万能青年旅店, 痛仰, 新裤子, 刺猬, 声音玩具, 木马',
+  'Punk 朋克': 'Ramones, Sex Pistols, Green Day, 脑浊, 地下婴儿, 诱导社, 顶楼的马戏团, SMZB, 过失',
+  'Reggae 雷鬼': 'Bob Marley, Peter Tosh, Lee Perry, 龙神道, 海龟先生, Kawa, 马帮, 蒋亮',
+  '国风/中国风': '周杰伦(中国风), 许嵩, 银临, 河图, 音阙诗听, 双笙, 等什么君, 要不要买菜',
+  'J-Pop/J-Rock': '宇多田ヒカル, 椎名林檎, 米津玄师, RADWIMPS, ONE OK ROCK, ヨルシカ, King Gnu, ずっと真夜中でいいのに',
+  'K-Pop': 'BTS, BLACKPINK, IU, DEAN, Crush, Zion.T, 乐童音乐家, HYUKOH,  Colde',
+  'House/Techno': 'Daft Punk, Deadmau5, Carl Cox, 马海平MHP, 吕志良, Howie Lee, 邱比, 3ASiC',
 };
 const EXPLORATION_TIPS = [
   '尝试推荐一些小众独立音乐人的作品，避开主流榜单。',
   '今天适合探索 80-90 年代的华语遗珠。',
   '挖掘一些韩国 R&B 或日本 City Pop。',
-  '推荐几首器乐/纯音乐作品，歌词不是必须的。',
   '可以推荐一些采样老歌的现代改编版。',
-  '今天偏向氛围感强的音乐，不一定要有歌词。',
+  '挖掘中文说唱或华语 R&B 的新声音。',
   '尝试推一些不同语言的音乐（法语、西语、韩语）。',
+  '推一首有故事有人声的歌，不要纯器乐。',
 ];
 
 function getExplorationBias(playlistArtists = []) {
