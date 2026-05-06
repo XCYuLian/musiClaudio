@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-max').addEventListener('click',()=>window.claudio.maximize());
   $('#btn-close').addEventListener('click',()=>window.claudio.close());
   $('#btn-lang').addEventListener('click',()=>{lang=lang==='en'?'zh':'en';localStorage.setItem('claudio_lang',lang);$('#btn-lang').textContent=lang==='en'?'中文':'EN';updateClock();});
-  window.claudio.onBroadcast(data => handleResponse(data));
+  window.claudio.onBroadcast(data => handleResponse(data, true));  // defer: don't cut off current song
   // Bug 3 fix: listen for main process loadState signal instead of blind setTimeout
   window.claudio.onLoadState(() => { loadState(); });
   window.claudio.notifyReady();

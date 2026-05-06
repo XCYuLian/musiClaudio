@@ -68,7 +68,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ## 技术栈
 - **Runtime**: Node.js ≥ 18, Electron + CommonJS
 - **数据库**: sql.js (SQLite WASM, `data/state.db`)
-- **AI**: DeepSeek API (`deepseek-chat`，**禁用 deepseek-v4-flash**)
+- **AI**: DeepSeek API (`deepseek-v4-flash`，备选 `deepseek-v4-pro`)
 - **TTS**: Volcengine ICL (`S_xSgIXKL12`)
 - **音乐**: NeteaseCloudMusicApi npm 模块直连
 - **代理**: 已废弃（@unblockneteasemusic/server 不稳定，V1 已降级）

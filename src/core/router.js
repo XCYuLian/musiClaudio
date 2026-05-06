@@ -7,6 +7,21 @@ const { askDeepSeek } = require('../api/deepseek');
 const { synthesize } = require('../api/tts');
 const ncm = require('../api/netease');
 const state = require('./state');
+const { HARD_FALLBACK_IDS } = require('./config');
+
+async function resolveHardFallback() {
+  const shuffled = [...HARD_FALLBACK_IDS].sort(() => Math.random() - 0.5);
+  for (const fb of shuffled) {
+    try {
+      const info = await ncm.getEmergencyUrl(fb.id);
+      if (info?.url) {
+        return { id: fb.id, name: fb.name, artists: fb.artist,
+          label: `${fb.artist} - ${fb.name}`, url: info.url, album: '' };
+      }
+    } catch {}
+  }
+  return null;
+}
 
 const SLASH_CMDS = [
   { name: 'search',  pattern: /^\/search\s+(.+)/i },
@@ -31,16 +46,17 @@ async function route(message) {
 
   for (const cmd of SLASH_CMDS) {
     const match = m.match(cmd.pattern);
-    if (match) return handleCmd(cmd.name, match[1] || '');
+    if (match) { console.log(`[router] slash cmd: ${cmd.name}`); return handleCmd(cmd.name, match[1] || ''); }
   }
 
   const musicMatch = m.match(MUSIC_RE);
   if (musicMatch) {
     const q = m.slice(musicMatch[0].length).trim();
-    if (q) return handleMusic(q);
+    if (q) { console.log(`[router] music direct: "${q}"`); return handleMusic(q); }
   }
 
   const intent = classifyIntent(m);
+  console.log(`[router] intent=${intent} msg="${m.slice(0,50)}..."`);
   return handleChat(m, intent);
 }
 
@@ -51,8 +67,9 @@ function handleCmd(name, arg) {
 
 // ── Music search shortcut ──
 async function handleMusic(query) {
+  console.log(`[router] handleMusic query="${query}"`);
   let tracks = [];
-  try { tracks = await ncm.search(query, 5); } catch {}
+  try { tracks = await ncm.search(query, 5); console.log(`[router] handleMusic search: ${tracks.length} results`); } catch (e) { console.warn(`[router] handleMusic search FAIL: ${e.message}`); }
   const results = tracks.slice(0, 3).map((t, i) => `${i + 1}. ${t.label}`).join('\n');
   const s = state.getState();
   const { systemPrompt, userMessage } = await buildContext({
@@ -67,7 +84,7 @@ async function handleMusic(query) {
   let resolved = [];
   try {
     resolved = await ncm.resolvePlaylist([searchQuery]);
-    resolved = filterRepeats(resolved);
+    resolved = state.filterRepeats(resolved);
   } catch {}
   if (!resolved.length && searchQuery) {
     try {
@@ -86,11 +103,12 @@ async function handleMusic(query) {
   state.addMessage('assistant', speech, {});
   if (resolved.length) resolved.forEach(t => state.addPlay(t.label || t.name, 'ai'));
   if (searchQuery) state.addPlay(searchQuery, 'ai-query');
-  return { type: 'music', speech, action_type: 'change_song', search_query: searchQuery, tracks: resolved, tts };
+  return { type: 'music', speech, action_type: 'change_song', search_query: searchQuery, tracks: resolved, tts, _meta: result._meta };
 }
 
 // ── Chat pipeline ──
 async function handleChat(input, intent = 'chat') {
+  console.log(`[router] handleChat intent=${intent} input="${input.slice(0,50)}..."`);
   // Pre-search only for explicit auto-refill, not every chat cycle
   let preSearchResults = '';
   if (intent === 'auto') {
@@ -109,69 +127,55 @@ async function handleChat(input, intent = 'chat') {
   const speech = result.dj_speech || result.speech || result.monologue || result.say || '';
   const action = result.action_type || (result.play?.length ? 'change_song' : 'chat_only');
   const query = result.search_query || result.play?.[0] || null;
+  const isFallback = !!result._meta?.fallback;
+  console.log(`[router] handleChat AI: action=${action} fallback=${isFallback} query="${query||''}" tts=${!!speech}`);
+
+  // Fast path: AI fallback → skip TTS, use hard fallback track directly
+  if (isFallback && action !== 'chat_only') {
+    console.log('[router] handleChat → hard fallback path');
+    const hard = await resolveHardFallback();
+    if (hard) {
+      console.log(`[router] hard fallback OK: "${hard.label}"`);
+      state.addMessage('user', input);
+      state.addMessage('assistant', speech, {});
+      state.addPlay(hard.label || hard.name, 'ai');
+      return { type: 'chat', speech: 'AI 暂时休息，为你播首经典。', action_type: 'change_song',
+        search_query: hard.label, tracks: [hard], tts: null, intent, _meta: result._meta };
+    }
+    console.warn('[router] hard fallback ALL FAILED');
+  }
+
   // Resolve tracks
   let tracks = [];
   if (query && action !== 'chat_only') {
     try {
       tracks = await ncm.resolvePlaylist([query]);
-      tracks = filterRepeats(tracks);
-    } catch {}
+      tracks = state.filterRepeats(tracks);
+      console.log(`[router] resolvePlaylist: ${tracks.length} tracks after filter`);
+    } catch (e) { console.warn(`[router] resolvePlaylist FAIL: ${e.message}`); }
     // If filter blocked everything, go hard fallback instead of refill loop
     if (!tracks.length && query) {
       try {
         const fb = await ncm.search('Chillwave', 3);
         if (fb.length) {
           const urlInfo = await ncm.getSongUrl(fb[0].id).catch(() => null);
-          if (urlInfo?.url) tracks = [{ ...fb[0], url: urlInfo.url }];
+          if (urlInfo?.url) { tracks = [{ ...fb[0], url: urlInfo.url }]; console.log(`[router] Chillwave fallback: "${fb[0].label}"`); }
         }
       } catch {}
     }
   }
-  // TTS
+  // TTS — skip for fallback speech to avoid timeout delay
   let tts = null;
-  try { const p = await synthesize(speech); if (p) tts = 'data:audio/mp3;base64,' + require('fs').readFileSync(p).toString('base64'); } catch {}
+  if (!isFallback) {
+    try { const p = await synthesize(speech); if (p) tts = 'data:audio/mp3;base64,' + require('fs').readFileSync(p).toString('base64'); } catch (e) { console.warn(`[router] TTS FAIL: ${e.message}`); }
+  } else { console.log('[router] TTS skipped (fallback)'); }
   // Record
   state.addMessage('user', input);
   state.addMessage('assistant', speech, {});
   if (tracks.length) tracks.forEach(t => state.addPlay(t.label || t.name, 'ai'));
   if (query) state.addPlay(query, 'ai-query');
-  return { type: 'chat', speech, action_type: action, search_query: query, tracks, tts, intent };
-}
-
-function filterRepeats(tracks) {
-  if (!tracks.length) return tracks;
-  try {
-    const recent = state.getRecentPlays24h(200);
-    const recentArtists = new Set();
-    const recentTracks = new Set();
-    recent.forEach(p => {
-      const t = (p.track || '').toLowerCase().trim();
-      if (!t) return;
-      recentTracks.add(t);
-      const dash = t.indexOf(' - ');
-      if (dash > 0) {
-        recentArtists.add(t.slice(0, dash).trim());
-      } else {
-        const space = t.indexOf(' ');
-        if (space > 0) recentArtists.add(t.slice(0, space).trim());
-      }
-    });
-    const filtered = tracks.filter(t => {
-      const label = (t.label || t.name || '').toLowerCase().trim();
-      const artist = (t.artists || '').toLowerCase().trim();
-      if (recentTracks.has(label)) { console.log(`[router:filter] BLOCKED exact: ${label}`); return false; }
-      if (artist && artist.length >= 4 && [...recentArtists].some(x => x.length >= 4 && (artist.includes(x) || x.includes(artist)))) {
-        console.log(`[router:filter] BLOCKED artist: ${artist}`); return false;
-      }
-      return true;
-    });
-    console.log(`[router:filter] Input: ${tracks.length}, Output: ${filtered.length}`);
-    if (!filtered.length && tracks.length) {
-      console.log('[router:filter] All filtered — rejecting, let caller refill');
-      return [];
-    }
-    return filtered;
-  } catch { return tracks; }
+  console.log(`[router] handleChat DONE: ${tracks.length} tracks tts=${!!tts}`);
+  return { type: 'chat', speech, action_type: action, search_query: query, tracks, tts, intent, _meta: result._meta };
 }
 
 module.exports = { route };

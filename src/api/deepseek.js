@@ -12,10 +12,12 @@
 // Config
 // ---------------------------------------------------------------------------
 
-const DEEPSEEK_API_URL = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/v1/chat/completions';
-const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+const {
+  DEEPSEEK_API_URL, DEEPSEEK_MODEL, DEEPSEEK_MAX_RETRIES, DEEPSEEK_TIMEOUT_MS,
+  DAILY_TOKEN_LIMIT,
+} = require('../core/config');
+
 const DEFAULT_API_KEY = 'sk-08fbfccc9bbd47d5822a345706e1b418';
-const DAILY_TOKEN_LIMIT = parseInt(process.env.DAILY_TOKEN_LIMIT) || 100000;
 
 /** Read API key: env override > default (for distribution) */
 function getApiKey() {
@@ -68,9 +70,6 @@ function addDailyTokens(tokens) {
 // Required fields: speech + action_type + search_query
 const REQUIRED_FIELDS = ['system_log', 'dj_speech', 'action_type', 'search_query'];
 const VALID_ACTIONS = ['chat_only', 'change_song'];
-
-// Max retries on extraction/parse failure (model sometimes needs a second chance)
-const MAX_RETRIES = 2;
 
 // ---------------------------------------------------------------------------
 // JSON extraction — handles all known model output quirks
@@ -167,6 +166,9 @@ function validateResponse(obj) {
 // Core: send prompt to DeepSeek, get parsed DJ response
 // ---------------------------------------------------------------------------
 
+let _callSeq = 0;
+const _sessionId = Math.random().toString(36).slice(2, 5);
+
 /**
  * @param {string} systemPrompt
  * @param {string} userMessage
@@ -181,6 +183,8 @@ async function askDeepSeek(systemPrompt, userMessage, options = {}) {
     temperature = 0.7,
     maxTokens = 1024,
   } = options;
+
+  const callId = `${_sessionId}:${++_callSeq}`;
 
   // Resolve model: explicit override > state prefs > env default
   let model = options.model || DEEPSEEK_MODEL;
@@ -198,7 +202,7 @@ async function askDeepSeek(systemPrompt, userMessage, options = {}) {
   if (isStationMaster()) {
     // Station master — unlimited, no log spam
   } else if (!checkDailyLimit()) {
-    console.warn(`[deepseek] Daily token limit reached (${DAILY_TOKEN_LIMIT.toLocaleString()} tokens).`);
+    console.warn(`[deepseek:${callId}] Daily token limit reached (${DAILY_TOKEN_LIMIT.toLocaleString()} tokens).`);
   }
 
   const body = {
@@ -213,18 +217,30 @@ async function askDeepSeek(systemPrompt, userMessage, options = {}) {
   };
 
   let lastError = null;
+  let lastRawText = '';  // hoisted so retry nudge can reference actual model output
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt <= DEEPSEEK_MAX_RETRIES; attempt++) {
     try {
-      // --- HTTP call ---
-      const response = await fetch(DEEPSEEK_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getApiKey()}`,
-        },
-        body: JSON.stringify(body),
-      });
+      // --- HTTP call (30s timeout to prevent indefinite hang) ---
+      const t0 = Date.now();
+      console.log(`[deepseek:${callId}] → POST attempt=${attempt+1} model=${model} key=${getApiKey().slice(0,8)}...`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), DEEPSEEK_TIMEOUT_MS);
+      let response;
+      try {
+        response = await fetch(DEEPSEEK_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getApiKey()}`,
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+      console.log(`[deepseek:${callId}] ← ${response.status} (${Date.now()-t0}ms)`);
 
       if (!response.ok) {
         const errBody = await response.text().catch(() => '');
@@ -237,8 +253,20 @@ async function askDeepSeek(systemPrompt, userMessage, options = {}) {
 
       const data = await response.json();
       const rawText = data.choices?.[0]?.message?.content || '';
+      lastRawText = rawText;  // save for possible retry nudge
 
       if (!rawText.trim()) {
+        // On last attempt, return graceful fallback instead of throwing
+        if (attempt >= DEEPSEEK_MAX_RETRIES) {
+          console.warn(`[deepseek:${callId}] All retries exhausted (empty content), returning fallback`);
+          return {
+            system_log: 'AI fallback',
+            dj_speech: '让我为你选一首歌。',
+            action_type: 'change_song',
+            search_query: 'Chillwave instrumental',
+            _meta: { model: data.model || model, usage: data.usage || null, attempts: attempt + 1, fallback: true },
+          };
+        }
         throw new EmptyResponseError('DeepSeek returned empty content');
       }
 
@@ -261,21 +289,31 @@ async function askDeepSeek(systemPrompt, userMessage, options = {}) {
         },
       };
     } catch (err) {
-      // Don't retry on config/schema errors — only on extraction/HTTP
+      console.error(`[deepseek:${callId}] FAIL attempt=${attempt+1}: ${err.name}: ${err.message}`);
       if (err instanceof ConfigError || err instanceof SchemaError) throw err;
       lastError = err;
 
-      if (attempt < MAX_RETRIES) {
-        // Nudge the model harder on retry: prepend a JSON-only reminder
-        body.messages.push({
-          role: 'assistant',
-          content: body.messages[body.messages.length - 1]?.content || '',
-        });
-        body.messages.push({
-          role: 'user',
-          content: 'Your previous response was not valid JSON. Output ONLY the JSON object. No markdown. No explanation.',
-        });
+      // On last attempt, return graceful fallback instead of throwing
+      if (attempt >= DEEPSEEK_MAX_RETRIES) {
+        console.warn(`[deepseek:${callId}] All retries exhausted (${err.name}), returning fallback`);
+        return {
+          system_log: 'AI fallback',
+          dj_speech: '让我为你选一首歌。',
+          action_type: 'change_song',
+          search_query: 'Chillwave instrumental',
+          _meta: { model: data?.model || model, usage: data?.usage || null, attempts: attempt + 1, fallback: true },
+        };
       }
+
+      // Nudge the model harder on retry: show it what it output + JSON-only demand
+      body.messages.push({
+        role: 'assistant',
+        content: lastRawText || '(empty)',
+      });
+      body.messages.push({
+        role: 'user',
+        content: 'Your previous response was not valid JSON. Output ONLY the JSON object. No markdown. No explanation.',
+      });
     }
   }
 

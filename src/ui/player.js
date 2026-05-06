@@ -5,6 +5,15 @@
  * LOADED FIRST — defines shared globals used by chat.js and favs.js.
  */
 
+// ── Timestamp all console output ──
+(function() {
+  const _log = console.log, _warn = console.warn, _err = console.error;
+  const ts = () => new Date().toISOString().slice(11, 23);
+  console.log  = (...a) => _log.call(console,  `[${ts()}]`, ...a);
+  console.warn = (...a) => _warn.call(console, `[${ts()}]`, ...a);
+  console.error= (...a) => _err.call(console,  `[${ts()}]`, ...a);
+})();
+
 const $ = s => document.querySelector(s);
 
 // ── State ──
@@ -37,6 +46,7 @@ function fmtTime(s) { const m = Math.floor(s/60), sec = Math.floor(s%60); return
 
 // ── Player state ──
 function setPlayerState(st) {
+  console.log(`[player] state ${playerState}→${st} _busy=${_busy} _coldBooting=${_coldBooting}`);
   playerState = st;
   const el = $('#np-label-text'); if (el) el.textContent = t(st);
   $('#btn-play').disabled = (st === 'idle');
@@ -64,11 +74,13 @@ function parseLRC(lrc) {
 }
 
 async function loadLyric(trackId) {
-  if (!trackId) return;
+  _lyricLines = [];
+  if (!trackId) { console.log('[player] lyric skip: no trackId'); renderLyricLines(); return; }
   try {
     const raw = await window.claudio.getLyric(trackId);
     _lyricLines = raw?.lrc?.lyric ? parseLRC(raw.lrc.lyric) : [];
-  } catch { _lyricLines = []; }
+    console.log(`[player] lyric loaded: ${_lyricLines.length} lines, trackId=${trackId}`);
+  } catch (e) { console.warn(`[player] lyric fail: ${e.message}`); _lyricLines = []; }
   renderLyricLines();
 }
 
@@ -153,7 +165,6 @@ function initVisualizer() {
     drawVisualizer(canvas);
   } catch (e) {
     // MediaElementSource can only be created once per audio element
-    console.log('[viz] already connected or not supported');
   }
 }
 
@@ -187,13 +198,23 @@ function drawVisualizer(canvas) {
 
 // ── Audio ──
 function playAudio(url) {
-  // Release previous audio context
+  console.log(`[player] playAudio url=${url?.slice(0,60)}... _busy=${_busy} _nextTrack=${!!(typeof _nextTrack!=='undefined'&&_nextTrack)}`);
+  // Release previous animation frame
   if (_visAnim) { cancelAnimationFrame(_visAnim); _visAnim = null; }
   const a = $('#audio'); a.src = url; setPlayerState('ready');
+  // Restart spectrum visualizer (was killed by cancelAnimationFrame above)
+  if (_analyser) {
+    const canvas = $('#visualizer-bar');
+    if (canvas) drawVisualizer(canvas);
+  }
   a.play().catch(()=>{});
   _busy = false;
   const label = $('#np-title').textContent + ' - ' + $('#np-artist').textContent;
   addHistory($('#np-title').textContent, $('#np-artist').textContent);
+  // Start prefetching next track immediately (background, non-blocking)
+  if (typeof _nextTrack !== 'undefined') _nextTrack = null;
+  if (typeof prefetchNext === 'function') prefetchNext();
+  // Story generation
   if (typeof startBackgroundStory === 'function') {
     startBackgroundStory(label);
   }
@@ -208,12 +229,13 @@ function initAudio() {
   $('#btn-prev').addEventListener('click', () => { if (!_busy) refill(); });
   $('#btn-next').addEventListener('click', () => { if (!_busy) refill(); });
 
-  a.addEventListener('play', () => { $('#icon-play').style.display='none'; $('#icon-pause').style.display=''; setPlayerState('playing'); });
+  a.addEventListener('play', () => { _loggedMid = false; _logged10s = false; $('#icon-play').style.display='none'; $('#icon-pause').style.display=''; setPlayerState('playing'); });
   a.addEventListener('pause', () => { $('#icon-play').style.display=''; $('#icon-pause').style.display='none'; if (a.src) setPlayerState('ready'); });
-  a.addEventListener('ended', () => { autoNext(); });
-  a.addEventListener('error', () => { setPlayerState('idle'); autoNext(); });
+  a.addEventListener('ended', () => { console.log('[player] audio ended → autoNext'); autoNext(); });
+  a.addEventListener('error', () => { console.warn('[player] audio error → autoNext'); setPlayerState('idle'); autoNext(); });
 
   let lastSave = 0;
+  let _loggedMid = false, _logged10s = false;
   a.addEventListener('timeupdate', () => {
     if (a.duration && isFinite(a.duration)) {
       const pct = (a.currentTime/a.duration*100);
@@ -225,12 +247,19 @@ function initAudio() {
     updateLyricHighlight(a.currentTime);
     // V2.8: Mid-song story check (~40-65% of song, wider window)
     if (a.duration && a.currentTime > a.duration * 0.4 && a.currentTime < a.duration * 0.65 && !_busy) {
+      if (!_loggedMid) { _loggedMid = true; console.log(`[player] mid-story trigger t=${a.currentTime.toFixed(1)}s`); }
       if (typeof checkMidStory === 'function') checkMidStory();
     }
-    // Pre-fetch at 10s remaining — let refill/fetchAI handle the _busy lock
-    if (a.duration && a.duration-a.currentTime < 10 && !_busy) { refill(); }
+    // Backup prefetch at 10s — only if prefetchNext didn't already get it
+    if (a.duration && a.duration-a.currentTime < 10 && !_busy) {
+      if (!_logged10s) { _logged10s = true; console.log(`[player] 10s prefetch trigger t=${a.currentTime.toFixed(1)}s remaining=${(a.duration-a.currentTime).toFixed(1)}s`); }
+      if (typeof prefetchNext === 'function') prefetchNext();
+    }
     // Seek-to-end → skip
-    if (a.duration>5 && a.currentTime >= a.duration-0.5) { a.pause(); autoNext(); }
+    if (a.duration>5 && a.currentTime >= a.duration-0.5) {
+      console.log(`[player] seek-to-end t=${a.currentTime.toFixed(1)}s → autoNext`);
+      a.pause(); autoNext();
+    }
     // Save
     const now = Date.now();
     if (now-lastSave>3000) { lastSave=now; saveState(); }
@@ -240,6 +269,16 @@ function initAudio() {
 
 function autoNext() {
   setPlayerState('idle');
+  if (_coldBooting) { console.log('[player] autoNext blocked: cold booting'); return; }
+  // Prefetched track ready → play instantly, no AI wait
+  if (typeof _nextTrack !== 'undefined' && _nextTrack) {
+    console.log('[player] autoNext → prefetched track');
+    const data = _nextTrack;
+    _nextTrack = null;
+    if (typeof handleResponse === 'function') handleResponse(data);
+    return;
+  }
+  console.log('[player] autoNext → refill');
   refill();
 }
 
@@ -256,6 +295,10 @@ function updatePlayerInfo(title, sub, trackId) {
   if (trackId && trackId !== _lastTrackId) {
     _lastTrackId = trackId;
     loadLyric(trackId);
+  } else if (!trackId) {
+    _lastTrackId = '';
+    _lyricLines = [];
+    renderLyricLines();
   }
 
   const tEl = $('#np-title'), sEl = $('#np-artist');
@@ -313,13 +356,16 @@ function saveState() {
   const a = $('#audio'); if (!a.src||a.src.endsWith('null')) return;
   localStorage.setItem('claudio_playback', JSON.stringify({url:a.src,title:$('#np-title').textContent,artist:$('#np-artist').textContent,position:a.currentTime}));
 }
+let _coldBooting = true;  // suppress autoNext during cold start recovery
+
 function loadState() {
   try {
-    const s = JSON.parse(localStorage.getItem('claudio_playback')); if (!s?.url) return;
+    const s = JSON.parse(localStorage.getItem('claudio_playback')); if (!s?.url) { console.log('[player] loadState: no saved state'); return; }
+    console.log(`[player] loadState: resuming "${s.title}" @ ${s.position?.toFixed(1)||0}s`);
     currentTrack = { label: s.title, name: s.title, url: s.url };
     updatePlayerInfo(s.title, s.artist);
     const a=$('#audio');a.src=s.url;a.currentTime=s.position||0;setPlayerState('ready');a.play().catch(()=>{});
-  } catch {}
+  } catch (e) { console.warn('[player] loadState error:', e.message); }
 }
 
 // ── Data Drift — floating status labels in clock background ──
@@ -371,3 +417,7 @@ function initVolume() {
   s.value=localStorage.getItem('claudio_volume')||80;a.volume=s.value/100;
   s.addEventListener('input',()=>{a.volume=s.value/100;localStorage.setItem('claudio_volume',s.value);});
 }
+
+// ── Cold boot: resume last track immediately, AI comes later ──
+setTimeout(() => { console.log('[player] cold boot: loading saved state'); loadState(); _coldBooting = true; }, 100);
+setTimeout(() => { if (_coldBooting) console.log('[player] cold boot timeout: forcing _coldBooting=false'); _coldBooting = false; }, 15000);  // safety: clear after 15s

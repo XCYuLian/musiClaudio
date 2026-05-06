@@ -6,7 +6,10 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('claudio', {
   // Chat
-  sendMessage: (msg) => ipcRenderer.invoke('chat:send', msg),
+  sendMessage: (msg) => {
+    console.log(`[preload] chat:send "${msg.slice(0,50)}..."`);
+    return ipcRenderer.invoke('chat:send', msg);
+  },
 
   // Settings
   getSettings: () => ipcRenderer.invoke('settings:get'),
@@ -40,13 +43,19 @@ contextBridge.exposeInMainWorld('claudio', {
 
   // Listen for scheduler broadcasts
   onBroadcast: (callback) => {
-    ipcRenderer.on('dj:broadcast', (_event, data) => callback(data));
+    ipcRenderer.on('dj:broadcast', (_event, data) => {
+      console.log(`[preload] dj:broadcast action=${data.action_type} hasTracks=${!!(data.tracks?.length)}`);
+      callback(data);
+    });
   },
 
   // Bug 3 fix: cold start — notify main process DOM is ready
-  notifyReady: () => ipcRenderer.invoke('app:ready'),
+  notifyReady: () => {
+    console.log('[preload] app:ready →');
+    return ipcRenderer.invoke('app:ready');
+  },
   onLoadState: (callback) => {
-    ipcRenderer.on('app:loadState', () => callback());
+    ipcRenderer.on('app:loadState', () => { console.log('[preload] app:loadState ←'); callback(); });
   },
 
   // Auth: Netease QR login (non-blocking single ops)

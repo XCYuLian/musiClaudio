@@ -2,6 +2,15 @@
  * Electron main process — Claudio Desktop Player
  */
 
+// ── Timestamp all console output ──
+(function() {
+  const _log = console.log, _warn = console.warn, _err = console.error;
+  const ts = () => new Date().toISOString().slice(11, 23);
+  console.log  = (...a) => _log.call(console,  `[${ts()}]`, ...a);
+  console.warn = (...a) => _warn.call(console, `[${ts()}]`, ...a);
+  console.error= (...a) => _err.call(console,  `[${ts()}]`, ...a);
+})();
+
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const { start: startScheduler, setCallback, triggerNow } = require('./src/core/scheduler');
@@ -162,9 +171,6 @@ function createWindow() {
       // Regenerate Soul DNA
       profiler.generate().catch(e => console.error('[profiler]', e.message));
 
-      // Regenerate Soul DNA
-      profiler.generate().catch(e => console.error('[profiler]', e.message));
-
       return { ok: true, ...result };
     } catch (err) {
       return { ok: false, error: err.message };
@@ -207,7 +213,6 @@ function createWindow() {
   const { buildStoryPrompt, buildSimplePrompt } = require('./src/core/storyteller');
   ipcMain.handle('story:tell', async (_event, trackLabel, lyricSnippet) => {
     try {
-      console.log('[story] Main process generating story for:', trackLabel);
       const hour = new Date().getHours();
       const prompt = buildStoryPrompt(trackLabel, { hour, lyricSnippet });
       const { askDeepSeek } = require('./src/api/deepseek');
@@ -217,11 +222,11 @@ function createWindow() {
       const result = await askDeepSeek(
         '你是深夜电台 DJ。输出 JSON: {"dj_speech": "口播内容", "action_type": "chat_only", "search_query": null}',
         prompt,
-        { temperature: 0.85, maxTokens: 512 }
+        { temperature: 0.85, maxTokens: 1024 }
       );
       const story = result.dj_speech || result.speech || '';
 
-      // Generate TTS
+      // Single TTS for emotional continuity
       let tts = null;
       if (story) {
         try {
@@ -230,10 +235,8 @@ function createWindow() {
         } catch {}
       }
 
-      console.log('[story] Generated:', story ? story.substring(0, 40) : '(empty)');
       return { ok: true, story, tts };
     } catch (e) {
-      console.log('[story] Failed:', e.message);
       return { ok: false, story: '', tts: null };
     }
   });
@@ -286,7 +289,6 @@ function createWindow() {
               const songs = await getSongDetail(ids.slice(0, 5));
               const sample = songs.map(s => s.label || s.name).join(', ');
               state.setPref('liked_songs_sample', sample);
-              console.log('[auth] Liked songs sample saved:', sample);
             } catch {}
           }
         }

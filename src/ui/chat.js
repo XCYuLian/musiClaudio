@@ -70,17 +70,14 @@ async function initVoxPanel() {
   render();
 }
 
-// ── Retry state (Bug 4 fix: prevent infinite fallback→refill loop) ──
+// ── Retry / Circuit breaker (mirrors src/core/config.js) ──
 let _fallbackCount = 0;
 const MAX_FALLBACK_RETRIES = 3;
 
-// ── Circuit breaker (Plan 2: stop AI loop when search keeps failing) ──
 let _failStreak = 0;
 const MAX_FAIL_STREAK = 3;
-// Hardcoded tracks guaranteed free & playable on Netease
-const LOCAL_FALLBACK = [
-  '周杰伦 晴天', '陈奕迅 十年', '林俊杰 江南', '王菲 红豆', '张学友 吻别',
-];
+const LOCAL_FALLBACK = ['周杰伦 晴天', '陈奕迅 十年', '林俊杰 江南', '王菲 红豆', '张学友 吻别'];
+const REFILL_COOLDOWN_MS = 30000;
 
 // ── Default fallback playlist (Bug 4 fix: AI empty → play backup) ──
 const DEFAULT_FALLBACK = [
@@ -114,6 +111,7 @@ function renderChat() {
 
 // ── UI Lock (Bug 2 fix: prevent concurrent input during AI processing) ──
 function lockUI() {
+  console.log('[chat] lockUI');
   const input = $('#chat-input'), send = $('#btn-send');
   const prev = $('#btn-prev'), next = $('#btn-next');
   if (input) { input.disabled = true; input.style.opacity = '0.4'; }
@@ -122,6 +120,7 @@ function lockUI() {
   if (next)  { next.disabled = true;  next.style.opacity = '0.4'; }
 }
 function unlockUI() {
+  console.log('[chat] unlockUI');
   const input = $('#chat-input'), send = $('#btn-send');
   const prev = $('#btn-prev'), next = $('#btn-next');
   if (input) { input.disabled = false; input.style.opacity = ''; }
@@ -132,10 +131,18 @@ function unlockUI() {
 
 // ── TTS safe play (Bug 2 fix: kill old TTS before new, ensure unlock on end) ──
 function playTts(ttsFile, volume, onEnd) {
+  console.log(`[chat] playTts start file=${ttsFile?.slice(0,40)}... gain=${getTtsGain().toFixed(2)}`);
   // Kill previous TTS instance to prevent overlapping speech
   if (_currentTts) {
+    console.log('[chat] playTts killing previous TTS');
     try { _currentTts.pause(); } catch {}
     _currentTts = null;
+  }
+  // Close old AudioContext to prevent memory leak (Bug: new AudioContext per TTS call)
+  if (_ttsActx) {
+    try { _ttsActx.close(); } catch {}
+    _ttsActx = null;
+    _ttsGain = null;
   }
   const tts = new Audio(ttsFile);
   _currentTts = tts;
@@ -147,19 +154,35 @@ function playTts(ttsFile, volume, onEnd) {
     src.connect(_ttsGain);
     _ttsGain.connect(_ttsActx.destination);
   } catch { tts.volume = 1.0; }
-  tts.onended = () => {
+
+  function cleanup() {
+    console.log('[chat] playTts cleanup');
     _currentTts = null;
+    // Close AudioContext after TTS playback ends (defer to let tail play)
+    if (_ttsActx) {
+      const ctx = _ttsActx;
+      setTimeout(() => { try { ctx.close(); } catch {} }, 500);
+      _ttsActx = null;
+      _ttsGain = null;
+    }
+  }
+
+  tts.onended = () => {
+    console.log('[chat] playTts ended');
+    cleanup();
     if (onEnd) onEnd();
     else { _busy = false; unlockUI(); }
   };
   tts.onerror = () => {
-    _currentTts = null;
+    console.warn('[chat] playTts error');
+    cleanup();
     _busy = false;
     unlockUI();
     if (onEnd) onEnd();
   };
   tts.play().catch(() => {
-    _currentTts = null;
+    console.warn('[chat] playTts play() rejected');
+    cleanup();
     _busy = false;
     unlockUI();
     if (onEnd) onEnd();
@@ -168,7 +191,8 @@ function playTts(ttsFile, volume, onEnd) {
 
 // ── AI Fetch ──
 async function fetchAI(msg, hidden) {
-  if (_busy) return;
+  if (_busy) { console.log('[chat] fetchAI blocked: _busy=true'); return; }
+  console.log(`[chat] fetchAI START msg="${msg.slice(0,40)}..."`);
   _busy = true;
   lockUI();
   try {
@@ -176,23 +200,52 @@ async function fetchAI(msg, hidden) {
     const ctx = _recent.length ? '[最近播放：'+_recent.join(' → ')+']\n'+m : m;
     const res = await window.claudio.sendMessage(ctx);
     if (!res.ok) throw new Error(res.error);
+    console.log(`[chat] fetchAI OK action=${res.action_type} hasTracks=${!!(res.tracks?.length)} tts=${!!res.tts}`);
     handleResponse(res);
   } catch(e) {
+    console.warn(`[chat] fetchAI FAIL: ${e.message} → handleFallback`);
     showChat(t('connError'), false);
-    handleFallback();  // Bug 4 fix: AI error → play fallback, don't deadlock
+    handleFallback();
   }
 }
 
 let _lastRefill = 0;
+
+// ── Prefetch: load next track in background as soon as current song starts ──
+let _nextTrack = null;
+let _prefetching = false;
+
+async function prefetchNext() {
+  if (_prefetching || _nextTrack) { console.log(`[chat] prefetch skip: prefetching=${_prefetching} hasNext=${!!_nextTrack}`); return; }
+  if (_failStreak >= MAX_FAIL_STREAK) { console.log('[chat] prefetch skip: circuit open'); return; }
+  if (typeof _coldBooting !== 'undefined' && _coldBooting) { console.log('[chat] prefetch skip: cold booting'); return; }
+  _prefetching = true;
+  console.log('[chat] prefetch START');
+  try {
+    const h = new Date().getHours();
+    const mood = h<6?'深夜':h<9?'清晨':h<12?'上午':h<14?'午后':h<17?'下午':h<19?'傍晚':'夜晚';
+    const ctx = _recent.length ? '[最近播放：'+_recent.join(' → ')+']\n'+mood+'了，推荐下一首' : mood+'了，推荐下一首';
+    const res = await window.claudio.sendMessage(ctx);
+    if (res.ok && res.action_type === 'change_song' && res.tracks?.some(t=>t.url)) {
+      _nextTrack = res;
+      console.log(`[chat] prefetch OK: "${res.tracks[0]?.label}" stored`);
+    } else {
+      console.log(`[chat] prefetch no-track: action=${res.action_type} tracks=${res.tracks?.length||0}`);
+    }
+  } catch(e) { console.warn(`[chat] prefetch FAIL: ${e.message}`); }
+  _prefetching = false;
+}
+
 async function refill() {
-  if (_busy) return;
+  if (_busy) { console.log('[chat] refill blocked: _busy=true'); return; }
+  if (typeof _coldBooting !== 'undefined' && _coldBooting) { console.log('[chat] refill blocked: cold booting'); return; }
+  if (typeof _nextTrack !== 'undefined' && _nextTrack) { console.log('[chat] refill blocked: _nextTrack already set'); return; }
   // Cooldown: don't refill within 30s of last refill
-  if (Date.now() - _lastRefill < 30000) return;
+  if (Date.now() - _lastRefill < REFILL_COOLDOWN_MS) { console.log('[chat] refill blocked: cooldown'); return; }
   _lastRefill = Date.now();
   // Plan 2: circuit breaker — don't call AI if search keeps failing
-  if (_failStreak >= MAX_FAIL_STREAK) {
-    return;
-  }
+  if (_failStreak >= MAX_FAIL_STREAK) { console.log('[chat] refill blocked: circuit open'); return; }
+  console.log('[chat] refill → trigger');
   const h = new Date().getHours();
   const mood = h<6?'深夜':h<9?'清晨':h<12?'上午':h<14?'午后':h<17?'下午':h<19?'傍晚':'夜晚';
   fetchAI(mood+'了，推荐下一首', '');
@@ -202,19 +255,20 @@ async function refill() {
 function handleFallback() {
   _fallbackCount++;
   _failStreak++;
+  console.warn(`[chat] handleFallback count=${_fallbackCount} streak=${_failStreak}/${MAX_FAIL_STREAK}`);
   if (_failStreak >= MAX_FAIL_STREAK) {
-    console.log(`[breaker] Circuit open (${_failStreak}x) — hard fallback`);
+    console.warn('[chat] handleFallback → CIRCUIT OPEN, refillQueue');
     showChat('AI 暂时休息，为你播放一首经典。恢复后说"换一首"即可。', false);
     _busy = false;
     unlockUI();
-    // Request main process to play emergency track
     window.claudio.refillQueue().catch(() => {});
   } else if (_fallbackCount <= MAX_FALLBACK_RETRIES) {
-    console.log(`[fallback] AI failed, retry ${_fallbackCount}/${MAX_FALLBACK_RETRIES}`);
+    console.log('[chat] handleFallback → retry refill in 2s');
     _busy = false;
     unlockUI();
     setTimeout(refill, 2000);
   } else {
+    console.warn('[chat] handleFallback → MAX retries, circuit open');
     _failStreak = MAX_FAIL_STREAK;
     showChat('AI 暂时休息，为你播放一首经典。', false);
     _busy = false;
@@ -224,7 +278,9 @@ function handleFallback() {
 }
 
 // ── Handle AI response ──
-function handleResponse(data) {
+// defer=true: if music is playing, store for autoNext instead of cutting off current song
+function handleResponse(data, defer = false) {
+  _coldBooting = false;  // first broadcast arrived, resume normal autoNext
   // Bug 4 + Plan 2 fix: reset retry counters on ANY successful AI response
   _fallbackCount = 0;
   _failStreak = 0;
@@ -237,6 +293,8 @@ function handleResponse(data) {
   const hasTracks = tracks.length > 0 && tracks.some(t=>t.url);
   const ttsFile = data.tts;
 
+  console.log(`[chat] handleResponse action=${action} defer=${defer} hasTracks=${hasTracks} tts=${!!ttsFile} speech="${djSpeech.slice(0,30)}..."`);
+
   // Show system_log dim, dj_speech normal
   if (sysLog) {
     chatMessages.push({ role:'system', say:sysLog, time:fmtNow(), hasTracks:false });
@@ -245,6 +303,7 @@ function handleResponse(data) {
 
   // chat_only → just speak, NEVER touch music
   if (action === 'chat_only') {
+    console.log('[chat] handleResponse → chat_only');
     showChat(djSpeech, false);
     if (ttsFile && ttsFile.startsWith('data:')) {
       const a = document.getElementById('audio');
@@ -263,23 +322,33 @@ function handleResponse(data) {
     return;
   }
 
-  // change_song → actually play new music (Plan 3: single track, no queue)
+  // change_song — defer if music is playing, don't cut off current song
   showChat(djSpeech, hasTracks);
   if (hasTracks) {
     const tr = tracks[0];
-    // Soft dedup: only skip if this exact track was the LAST one played (not all history)
     const label = (tr.label || tr.name || '').toLowerCase();
     const lastPlayed = _recent.length ? _recent[_recent.length - 1].toLowerCase() : '';
     if (lastPlayed && lastPlayed.includes(label)) {
-      console.log('[breaker] Back-to-back repeat, skipping:', tr.label);
+      console.warn(`[chat] handleResponse → back-to-back reject: "${tr.label}"`);
       showChat('刚听过这首，换一首。', false);
-      // Direct hard fallback — don't risk another AI loop
       handleFallback();
       return;
     }
+
+    // If defer mode and music is playing, store for autoNext — don't cut off
+    const a = document.getElementById('audio');
+    const isPlaying = a && !a.paused && a.duration && a.currentTime < a.duration - 0.5;
+    if (defer && !_coldBooting && isPlaying) {
+      console.log(`[chat] handleResponse → DEFER "${tr.label}" (playing @ ${a.currentTime.toFixed(0)}s/${a.duration.toFixed(0)}s)`);
+      _nextTrack = data;
+      _busy = false;
+      unlockUI();
+      return;
+    }
+
+    console.log(`[chat] handleResponse → PLAY NOW "${tr.label}"`);
     currentTrack = tr;
     updatePlayerInfo(tr.label||tr.name, tr.album||'', tr.id);
-    // Music first, DJ voice-overs after 300ms
     playAudio(tr.url);
     if (ttsFile && ttsFile.startsWith('data:')) {
       setTimeout(() => {
@@ -301,10 +370,11 @@ function handleResponse(data) {
   } else {
     // Plan 2: circuit breaker — don't call AI again if search keeps failing
     _failStreak++;
+    console.warn(`[chat] handleResponse → NO TRACKS streak=${_failStreak}/${MAX_FAIL_STREAK} query="${query||'?'}"`);
     if (_failStreak >= MAX_FAIL_STREAK) {
         showChat('暂时找不到在线音源，为你播放一首经典。', false);
       const fallbackQuery = LOCAL_FALLBACK[Math.floor(Math.random() * LOCAL_FALLBACK.length)];
-      // Try ONE local fallback, don't retry AI
+      console.log(`[chat] handleResponse → tryLocalFallback: "${fallbackQuery}"`);
       _busy = false;
       unlockUI();
       tryLocalFallback(fallbackQuery);
@@ -351,67 +421,118 @@ function fadeVol(a, from, to, onDone) {
 // ── V2.8 Background Storyteller ──
 let _pendingStory = null;
 let _storyTriggered = false;
+let _storyTimer = null;  // cancellable timer for story segments
+let _storyGenerating = false;  // prevent concurrent generation
 
 // Called after playAudio: start async story generation
 async function startBackgroundStory(trackLabel) {
+  if (_storyGenerating) { console.log('[chat] story skip: already generating'); return; }
+  console.log(`[chat] story START label="${trackLabel?.slice(0,40)}" lyricLines=${_lyricLines?.length||0}`);
+  _storyGenerating = true;
   _pendingStory = null;
   _storyTriggered = false;
-  if (!trackLabel || _failStreak >= MAX_FAIL_STREAK) { console.log('[story] skipped (breaker)'); return; }
+  if (_storyTimer) { clearInterval(_storyTimer); _storyTimer = null; }
+  if (!trackLabel || _failStreak >= MAX_FAIL_STREAK) { console.log('[chat] story skip: no label or circuit open'); _storyGenerating = false; return; }
 
-  // Collect 2-3 lyric lines as inspiration
+  // Collect 4-5 lyric lines as inspiration (skip instrumentals)
+  const INSTRUMENTAL_MARKERS = /纯音乐|请欣赏|instrumental|piano\s*cover|orchestra/i;
   let lyricSnippet = '';
-  if (_lyricLines && _lyricLines.length > 3) {
+  if (_lyricLines && _lyricLines.length > 3 && !INSTRUMENTAL_MARKERS.test(_lyricLines.map(l=>l.text).join('|'))) {
     const picks = [];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 5; i++) {
       const idx = Math.floor(Math.random() * _lyricLines.length);
       if (!picks.includes(idx)) picks.push(idx);
     }
     lyricSnippet = picks.sort((a,b)=>a-b).map(i => _lyricLines[i].text).join(' / ');
+    console.log(`[chat] story lyricSnippet="${lyricSnippet.slice(0,50)}..."`);
+  } else {
+    console.log(`[chat] story no lyrics: empty=${!_lyricLines?.length} instrumental=${INSTRUMENTAL_MARKERS.test((_lyricLines||[]).map(l=>l.text).join('|'))}`);
   }
 
   try {
     const res = await window.claudio.tellStory(trackLabel, lyricSnippet);
     if (res?.ok && res?.story) {
       _pendingStory = res;
-      console.log('[story] Ready:', res.story.substring(0, 50));
+      console.log(`[chat] story OK: ${res.story.length} chars`);
     } else {
-      console.log('[story] Failed:', res?.error || 'no story');
+      console.log(`[chat] story API returned no story: ok=${res?.ok}`);
     }
-  } catch (e) { console.log('[story] Error:', e.message); }
+  } catch (e) { console.warn(`[chat] story FAIL: ${e.message}`); }
+  _storyGenerating = false;
 }
 
-// Called from timeupdate at ~50%: output story segments synced to speech
+// Called from timeupdate at ~50%: output story timed to TTS playback
 function checkMidStory() {
   if (_storyTriggered || !_pendingStory || _busy) { return; }
-  console.log('[story] Mid-song trigger! Outputting story...');
   _storyTriggered = true;
+  console.log(`[chat] checkMidStory TRIGGER sentences=${_pendingStory.story?.split(/[。！？\n]/).length||0}`);
 
   const { story, tts } = _pendingStory;
-  const segments = story
-    .split(/\n|。/)
+  if (!story) return;
+
+  // Cancel any previous story timer
+  if (_storyTimer) { clearInterval(_storyTimer); _storyTimer = null; }
+
+  const sentences = story
+    .split(/(?<=[。！？\n])\s*/)
     .map(s => s.trim())
-    .filter(s => s.length > 2);
+    .filter(s => s.length > 1);
 
-  if (!segments.length) return;
-
-  // Show segments one by one, synced to estimated speech time (~4 chars/sec for Chinese TTS)
-  let idx = 0;
-  function showNext() {
-    if (idx < segments.length) {
-      showChat(segments[idx], false);
-      const delay = Math.max(segments[idx].length * 250, 2000); // ~4 chars/sec → 250ms/char
-      idx++;
-      setTimeout(showNext, delay);
+  // Fallback: no sentences or no TTS → show all at once
+  if (!sentences.length || !tts || !tts.startsWith('data:')) {
+    showChat(story, false);
+    if (tts && tts.startsWith('data:')) {
+      const a = document.getElementById('audio');
+      playTts(tts, a ? a.volume : 1);
     }
+    return;
   }
-  showNext();
 
-  // TTS playback
-  if (tts && tts.startsWith('data:')) {
-    const a = document.getElementById('audio');
-    const v = a ? a.volume : 1;
-    playTts(tts, v);
+  // Start TTS playback — single audio, emotional continuity intact
+  const a = document.getElementById('audio');
+  const v = a ? a.volume : 1;
+  playTts(tts, v);
+
+  // Wait for audio duration, then sync text cues to playback position
+  function stopPoll() {
+    if (_storyTimer) { clearInterval(_storyTimer); _storyTimer = null; }
   }
+
+  _storyTimer = setInterval(() => {
+    if (!_currentTts || !_currentTts.duration) {
+      // TTS was killed externally — clean up and bail
+      if (!_currentTts) stopPoll();
+      return;
+    }
+    stopPoll();
+
+    const dur = _currentTts.duration;
+    let charPos = 0;
+    const cues = sentences.map(s => {
+      const at = (charPos / story.length) * dur;
+      charPos += s.length;
+      return { text: s, at };
+    });
+
+    let cueIdx = 0;
+
+    // Catch up to any cues already passed while waiting for metadata
+    while (cueIdx < cues.length && _currentTts.currentTime >= cues[cueIdx].at - 0.15) {
+      showChat(cues[cueIdx].text, false);
+      cueIdx++;
+    }
+
+    // Poll playback position to trigger remaining cues
+    _storyTimer = setInterval(() => {
+      if (!_currentTts) { stopPoll(); return; }
+      if (cueIdx >= cues.length) { stopPoll(); return; }
+      if (_currentTts.currentTime >= cues[cueIdx].at) {
+        showChat(cues[cueIdx].text, false);
+        cueIdx++;
+      }
+      if (cueIdx >= cues.length) { stopPoll(); }
+    }, 100);
+  }, 60);
 }
 
 // ── Easter egg: command interception ──
@@ -469,6 +590,7 @@ function initChat() {
   const input=$('#chat-input'),btn=$('#btn-send');
   btn.addEventListener('click',()=>{
     const m=input.value.trim();if(!m)return;input.value='';
+    console.log(`[chat] user msg: "${m.slice(0,40)}..."`);
     chatMessages.push({role:'user',content:m,time:fmtNow()});renderChat();
     if (checkEasterEgg(m)) return;
     // V2.8: manual story trigger
