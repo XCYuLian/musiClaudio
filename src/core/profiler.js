@@ -56,10 +56,7 @@ async function analyze(playlistPath = null) {
     return null;
   }
 
-  if (!tracks.length) {
-    console.log('[profiler] No tracks to analyze');
-    return null;
-  }
+  if (!tracks.length) return null;
 
   // Parse "Artist - SongName" format
   const artists = {};
@@ -172,7 +169,6 @@ async function generate(playlistPath = null) {
 
   const outPath = path.join(paths.DATA, 'internal_taste_dna.md');
   fs.writeFileSync(outPath, dna, 'utf-8');
-  console.log(`[profiler] DNA written to ${outPath} (${dna.length} chars)`);
   return dna;
 }
 

@@ -6,6 +6,8 @@
  * Falls back to music.163.com web API if module calls fail.
  */
 
+const { MODULE_THROTTLE_MS, SEARCH_LIMIT, BAD_KEYWORDS } = require('../core/config');
+
 const ncmModule = (() => {
   try { return require('NeteaseCloudMusicApi'); } catch { return null; }
 })();
@@ -17,9 +19,7 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 function getCookie() {
   try {
     const state = require('../core/state');
-    const cookie = state.getPref('netease_cookie') || process.env.NETEASE_COOKIE || '';
-    if (cookie) console.log('[netease] cookie injected:', cookie.substring(0, 30) + '...');
-    return cookie;
+    return state.getPref('netease_cookie') || process.env.NETEASE_COOKIE || '';
   } catch { return process.env.NETEASE_COOKIE || ''; }
 }
 
@@ -39,7 +39,7 @@ let _moduleThrottled = 0;
 async function callModule(name, query = {}) {
   if (!ncmModule) throw new Error('NeteaseCloudMusicApi not installed');
   // Throttle: if rate-limited, skip module calls for 60s
-  if (Date.now() - _moduleThrottled < 60000) throw new Error('Module throttled');
+  if (Date.now() - _moduleThrottled < MODULE_THROTTLE_MS) throw new Error('Module throttled');
   const fn = ncmModule[name];
   if (!fn) throw new Error(`Module function "${name}" not found`);
   const cookie = getCookie();
@@ -66,12 +66,8 @@ async function getLoginStatus() {
     if (!cookie) return null;
     const res = await callModule('login_status', {});
     const profile = res.body?.data?.profile || res.body?.profile || null;
-    if (profile?.nickname) {
-      console.log(`[netease] Logged in as: ${profile.nickname} (VIP: ${profile.vipType > 0 ? 'yes' : 'no'})`);
-    }
     return profile;
   } catch (e) {
-    console.log('[netease] Not logged in:', e.message);
     return null;
   }
 }
@@ -115,7 +111,7 @@ async function search(keywords, limit = 10) {
     try {
       const res = await callModule('search', { keywords, limit, type: 1 });
       return (res.body?.result?.songs || []).map(formatTrack);
-    } catch (e) { if (!e.message?.includes('throttled')) console.log('[netease] module search failed:', e.message); }
+    } catch (e) { /* fall through to web */ }
   }
   // 2. Web fallback
   const data = await webGet(`/cloudsearch/pc?s=${encodeURIComponent(keywords)}&type=1&limit=${limit}`);
@@ -143,7 +139,7 @@ async function proxyGetSongUrl(trackId) {
     if (info?.url && !info.url.includes('music.163.com/404')) {
       return { url: info.url, type: info.type, br: info.br, via: 'proxy' };
     }
-  } catch (e) { console.log('[netease] proxy URL failed:', e.message); }
+  } catch (e) { /* proxy unavailable */ }
   return null;
 }
 
@@ -155,8 +151,6 @@ async function getSongUrl(trackId) {
   // ── VIP FAST PATH: try official API with high quality FIRST ──
   if (isVip && ncmModule) {
     try {
-      console.log(`[netease] VIP 身份检测成功，正在请求官方高码率音源...`);
-      // Try song_url_v1 with lossless level first
       let res;
       try {
         res = await callModule('song_url_v1', { id: trackId, level: 'lossless' });
@@ -165,11 +159,9 @@ async function getSongUrl(trackId) {
       }
       const info = res.body?.data?.[0];
       if (info?.url) {
-        // VIP users can play ANY song — fee check is irrelevant
-        console.log(`[netease] ✅ VIP 官方音源获取成功！直连播放 (fee=${info.fee}, br=${info.br})`);
         return { url: info.url, type: info.type || 'mp3', br: info.br || 999000, via: 'vip-official' };
       }
-    } catch (e) { console.log('[netease] VIP official API failed:', e.message); }
+    } catch (e) { /* VIP API failed, fall through */ }
   }
 
   // ── FALLBACK: Module (no VIP) ──
@@ -181,11 +173,10 @@ async function getSongUrl(trackId) {
         return { url: info.url, type: info.type, br: info.br, via: 'module' };
       }
       if (info?.url && (info.fee === 1 || info.fee === 4)) {
-        console.log(`[netease] Track ${trackId} is VIP (fee=${info.fee}), proxy fallback...`);
         const retry = await proxyGetSongUrl(trackId);
         if (retry?.url) return retry;
       }
-    } catch (e) { if (!e.message?.includes('throttled')) console.log('[netease] module song_url failed:', e.message); }
+    } catch (e) { /* fall through to proxy/web */ }
   }
 
   // ── Proxy fallback (for non-VIP or VIP API failure) ──
@@ -237,10 +228,7 @@ async function getUserPlaylists(uid) {
     try {
       const res = await callModule('user_playlist', { uid });
       return res.body?.playlist || [];
-    } catch (e) {
-      // If no cookie, user_playlist returns limited data
-      console.log('[netease] module user_playlist (limited):', e.message);
-    }
+    } catch (e) { /* no cookie — returns limited data */ }
   }
   // Web fallback
   try {
@@ -268,8 +256,6 @@ async function getPlaylistDetail(playlistId, limit = 1000, offset = 0) {
  * Resolve a single query to best-matching track + URL.
  */
 // ── Quality filters ──
-
-const BAD_KEYWORDS = ['dj', 'remix', 'live', '现场', '翻唱', '翻自', '伴奏', '串烧', '铃声', '抖音', 'cover', 'sped up', 'mix', 'dj版', 'remix版', '合唱', '纯音乐', 'instrumental', 'karaoke', '消音', '模仿', '改编', '翻奏', '粤语版', '国语版', '英文版', '日语版', '韩语版', '变奏', '慢摇'];
 
 function isBadVersion(track) {
   const check = (s) => {
@@ -312,29 +298,17 @@ async function resolveTrack(query) {
   }
 
   // Search, get more results for filtering
-  const results = await search(searchQuery, 15);
+  const results = await search(searchQuery, SEARCH_LIMIT);
   if (!results.length) return null;
-  console.log(`[netease] resolveTrack("${query}"): ${results.length} search results`);
-  if (expectedArtist) console.log(`[netease] Expected artist: "${expectedArtist}"`);
 
   // Step 1: Remove bad versions (DJ, remix, live, etc.)
   let clean = results.filter(r => !isBadVersion(r));
-  if (!clean.length) {
-    console.log(`[netease] All ${results.length} results filtered as bad versions for "${query}"`);
-    return null;
-  }
+  if (!clean.length) return null;
 
-  // Step 2 (NEW): STRICT artist filter — if AI specified an artist, only consider that artist's tracks
+  // Step 2: STRICT artist filter — if AI specified an artist, only consider that artist's tracks
   if (expectedArtist) {
     const strictMatches = clean.filter(t => artistMatch(expectedArtist, t.artists));
-    if (strictMatches.length > 0) {
-      console.log(`[netease] Strict artist "${expectedArtist}": ${strictMatches.length}/${clean.length} matches`);
-      clean = strictMatches;
-    } else {
-      // No exact match — use loose results (artist name might be non-standard)
-      console.log(`[netease] No strict match for "${expectedArtist}" — trying loose results (${clean.length} tracks)`);
-      // Don't return null, use clean results with lower confidence
-    }
+    if (strictMatches.length > 0) clean = strictMatches;
   }
 
   // Step 3: Score & sort remaining candidates
@@ -344,7 +318,6 @@ async function resolveTrack(query) {
     const qLower = query.toLowerCase();
     const songPart = qLower.split(/\s+/).pop() || '';
     if (track.name && track.name.toLowerCase().includes(songPart)) score += 3;
-    // Boost tracks where song name closely matches the query's song part
     if (track.name && songPart && track.name.toLowerCase() === songPart) score += 5;
     return { track, score };
   });
@@ -355,17 +328,13 @@ async function resolveTrack(query) {
     const origDur = results[0]?.dt;
     if (origDur && track.dt) {
       const diff = Math.abs((track.dt - origDur) / 1000);
-      if (diff > 8) {
-        console.log(`[netease] Duration mismatch for "${track.label}": diff=${diff}s, skipping`);
-        continue;
-      }
+      if (diff > 8) continue;
     }
     const urlInfo = await getSongUrl(track.id);
     if (urlInfo?.url) return { ...track, url: urlInfo.url, br: urlInfo.br };
   }
 
-  // Step 5: No good match — return null
-  console.log(`[netease] No playable source for "${query}"`);
+  // Step 5: No good match
   return null;
 }
 

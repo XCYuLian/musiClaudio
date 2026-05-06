@@ -87,7 +87,6 @@ function saveCookie(cookie) {
   try {
     const state = require('../core/state');
     state.setPref('netease_cookie', cookie);
-    console.log('[auth] Cookie saved to state');
     return true;
   } catch (e) {
     console.error('[auth] Failed to save cookie:', e.message);

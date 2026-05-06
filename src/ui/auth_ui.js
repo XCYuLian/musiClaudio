@@ -12,7 +12,6 @@ let _pollTimer = null;
 // ── Init ──
 async function initAuthUI() {
   const badge = $('#user-badge');
-  console.log('[auth_ui] init, badge found:', !!badge);
   if (!badge) return;
 
   // Check saved cookie
@@ -32,7 +31,6 @@ async function initAuthUI() {
   } catch { badge.classList.add('guest'); }
 
   badge.addEventListener('click', () => {
-    console.log('[auth_ui] 用户徽章被点击了');
     if (!_loginKey) startLogin();
   });
 
@@ -46,7 +44,6 @@ async function initAuthUI() {
 
 // ── Start login ──
 async function startLogin() {
-  console.log('[auth_ui] startLogin called');
   const overlay = $('#qr-overlay');
   const status = $('#qr-status');
   const img = $('#qr-image');
@@ -62,7 +59,6 @@ async function startLogin() {
     if (!qrResult?.ok) throw new Error(qrResult?.error || 'QR generation failed');
 
     const qrData = qrResult.qrimg || '';
-    console.log('二维码原始数据:', qrData.substring(0, 50));
     // Ensure base64 prefix — API may return raw base64 or prefixed
     img.src = qrData.startsWith('data:') ? qrData : 'data:image/png;base64,' + qrData;
     _loginKey = qrResult.key;

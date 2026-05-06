@@ -209,4 +209,37 @@ function getState() {
   };
 }
 
-module.exports = { init, getState, addMessage, getRecentMessages, addPlay, getRecentPlays, getRecentPlays24h, getTodayPlan, setTodayPlan, getPref, setPref, getAllPrefs };
+// ── Shared filter: block recently played tracks & artists ──
+const { PERMA_BLOCKED_ARTISTS } = require('./config');
+
+function filterRepeats(tracks) {
+  if (!tracks || !tracks.length) return [];
+  try {
+    const recent = getRecentPlays24h(200);
+    const recentArtists = new Set();
+    const recentTracks = new Set();
+    recent.forEach(p => {
+      const t = (p.track || '').toLowerCase().trim();
+      if (!t) return;
+      recentTracks.add(t);
+      const dash = t.indexOf(' - ');
+      if (dash > 0) recentArtists.add(t.slice(0, dash).trim());
+    });
+    PERMA_BLOCKED_ARTISTS.forEach(a => recentArtists.add(a));
+
+    const filtered = tracks.filter(t => {
+      const label = (t.label || t.name || '').toLowerCase().trim();
+      const artist = (t.artists || '').toLowerCase().trim();
+      if (recentTracks.has(label)) return false;
+      if (artist && artist.length >= 4 && [...recentArtists].some(x =>
+        x.length >= 4 && (artist.includes(x) || x.includes(artist)))) return false;
+      return true;
+    });
+
+    // Never return first track if ALL filtered — let caller go hard fallback
+    if (!filtered.length && tracks.length) return [];
+    return filtered;
+  } catch { return tracks; }
+}
+
+module.exports = { init, getState, addMessage, getRecentMessages, addPlay, getRecentPlays, getRecentPlays24h, getTodayPlan, setTodayPlan, getPref, setPref, getAllPrefs, filterRepeats };

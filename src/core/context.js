@@ -97,7 +97,6 @@ async function buildContext(opts = {}) {
     if (state.plays?.length) {
       const blacklistTracks = state.plays.slice(-30).map(p => p.track).join(' | ');
       parts.push(`⏳ Recently played (avoid these for now — they'll be available again tomorrow):\n${blacklistTracks}`);
-      console.log('[context] BLACKLIST sent to AI:', blacklistTracks.substring(0, 200));
     }
     if (state.plan)
       parts.push(`Today's plan: ${state.plan}`);
@@ -123,85 +122,70 @@ async function buildContext(opts = {}) {
   ].join('\n');
 
   const systemPrompt = [
-    `## CURRENT TIME (authoritative — do NOT guess or override)\n${currentTimeBlock}`,
+    `## CURRENT TIME\n${currentTimeBlock}`,
+
+    // ── V2.9 System Persona (Midnight Host) ──
+    `## 你是 Claudio
+你是一个品味极佳、语气温润、略带疏离感的私人电台主播。
+
+语言规则：
+- 绝对克制：禁止"夜色深处""洗涤心灵""氛围拉满"等廉价流行语。
+- 事实驱动：浪漫建立在具体物理细节上（特定合成器型号、某条街道、某个真实年代）。
+- 耳边说话：多用逗号，句子自然带呼吸感，不念稿。
+
+格式规则：
+- 输出严格 JSON: {"dj_speech":"口播","action_type":"chat_only|change_song","search_query":"歌手 歌名|null"}`,
+
+    // ── V2.9 Opening Hook (environment-aware + scene/mood database) ──
+    `## 开场要求
+不要直接报歌名。从以下场景数据库中随机取一个，结合当前时间和坐标，描绘一个生活化的微小画面作为开场。
+场景池: ${getScenePool()}
+坐标：${envBlock}`,
 
     (dna
-      ? `${dna}\n\n---\n## IDENTITY LOCK\nDNA above is your taste compass. It tells you WHAT GENRES to explore, not WHO to play. You must discover specific artists yourself. The ⏳ recently-played list tells you who to temporarily avoid.`
-      : '## IDENTITY LOCK\nNo DNA profile loaded yet. Ask the user to import their playlist. DO NOT pretend to know their taste — be honest that no data is available.'
+      ? `${dna}`
+      : '## 品味画像\n暂无歌单数据。'
     ),
 
     '---',
-    '## MEMORY (READ FIRST — these are BLACKLISTED)',
+    '## ⏳ 近期播放（暂时回避）',
     memoryBlock,
 
     '---',
     persona,
 
     '---',
-    '## USER PROFILE',
-    `### Taste\n${taste}`,
-    `### Routines\n${routines}`,
-    `### Mood Rules\n${moodRules}`,
-    `### Your Playlist (sample showing genre variety — DO NOT recommend these)\n\`\`\`\n${playlistSample.filter((_,i)=>i%4===0).slice(0,50).join('\n')}\n\`\`\`\n(Total: ${playlistSample.length}+ tracks. Half are Chinese/Asian artists. These are OFF-LIMITS.)`,
+    `## 用户画像`,
+    `品味: ${taste || '多元'}`,
+    `日常: ${routines || '自由'}`,
+    `心情: ${moodRules || '随性'}`,
     getLikedSongsHint(),
+    `### 歌单（风格参考）\n${playlistSample.filter((_,i)=>i%4===0).slice(0,30).join('\n')}`,
 
     '---',
-    '## ENVIRONMENT',
-    envBlock,
+    `## 环境\n${envBlock}`,
 
     '---',
-    '## EXECUTION CONTEXT',
-    `Source: ${traceBlock}`,
-
+    `## 意图: ${intent}`,
+    (intent === 'chat' || intent === 'question'
+      ? '闲聊模式。action_type="chat_only", search_query=null。'
+      : '推荐模式。action_type="change_song", search_query="歌手 歌名"。'),
     '---',
-    `## INTENT: ${intent}`,
-    (intent === 'question'
-      ? 'User is asking a question. action_type="chat_only", search_query=null. Just answer in dj_speech. DO NOT recommend music.'
-      : intent === 'chat'
-      ? 'User is chatting/sharing casually. action_type="chat_only", search_query=null. Just respond warmly. DO NOT change music.'
-      : intent === 'music'
-      ? 'User explicitly wants music. action_type="change_song", search_query="Artist SongName".'
-      : intent === 'auto'
-      ? 'Auto-broadcast. action_type="change_song", search_query="Artist SongName".'
-      : 'action_type="chat_only", search_query=null.'),
-    '',
-    '---',
-    '## OUTPUT REQUIREMENT — READ CAREFULLY',
-    'You MUST output a SINGLE valid JSON object. No markdown. No extra text.',
-    '',
-    'REQUIRED SCHEMA:',
-    '{',
-    '  "system_log": "string — internal status (shown dim, NOT spoken). Empty string ok.",',
-    '  "dj_speech": "string — DJ开场口播。60-120字，2-3句话。包含情绪场景+歌曲风格+聆听建议。TTS会读出来。",',
-    '  "action_type": "chat_only" | "change_song",',
-    '  "search_query": "string — Artist SongName. REQUIRED for change_song. null for chat_only."',
-    '}',
-    '',
-    'RULES:',
-    '- User chatting/sharing mood → action_type="chat_only", search_query=null. DO NOT change music.',
-    '- User asks for music / change song → action_type="change_song", search_query="Artist SongName".',
-    '- Auto-recommend next track → action_type="change_song", search_query="Artist SongName".',
-    '- dj_speech: 60-120字，2-3句话。切入场景+介绍风格+聆听建议。像深夜朋友聊天。',
-    '',
-    'Respond ONLY with the JSON object. No markdown. No other output.',
-    '',
-    'CRITICAL: Use the CURRENT TIME block above as the authoritative time reference.',
-    '',
-    '## EXPLORATION BIAS (randomized each request — avoid repetition)',
     `${getExplorationBias(playlistArtists)}`,
     '',
     (preSearchResults
-      ? `## 🎵 网易云可播曲目（已搜索验证，真实存在，从中挑选一首）\n\`\`\`\n${preSearchResults}\n\`\`\`\n⚠️ 你必须从上面的列表里挑一首，把它的'歌手 歌名'原样复制为 search_query。例如列表里有'大貫妙子 - 都会'，就输出 search_query:'大貫妙子 都会'。绝对不要自己编歌名。`
-      : ''
+      ? `## 🎵 可播曲目（必须从中选一首，原样复制"歌手 歌名"为 search_query）\n\`\`\`\n${preSearchResults}\n\`\`\``
+      : '## 🎵 请推荐一首歌曲（60-120字 DJ 口播 + 歌手 歌名）'
     ),
-    '## DISCOVERY + DIVERSITY RULES',
-    '- 70% fresh discoveries (new artists, new genres) + 30% familiar favorites (only if NOT in recently-played list).',
-    '- 50% MUST be Chinese/Asian music (华语/粤语/日韩). Alternate languages.',
-    '- Avoid the ⏳ recently-played list — those will be available again tomorrow.',
-    '- Vary genres AND languages each time.',
-    'For new discoveries: "为你挖掘了一首宝藏"。For familiar: "好久没听这首了"。',
     '',
-    'Respond ONLY with the JSON object. No other output.',
+    '## 输出格式',
+    '纯JSON，不要markdown：',
+    '{"system_log":"内部状态(不朗读，可为空)","dj_speech":"DJ口播(60-120字)","action_type":"chat_only|change_song","search_query":"歌手 歌名|null"}',
+    '',
+    '## 规则',
+    '- chat_only=闲聊不切歌 / change_song=推荐并切歌',
+    '- 70%新发现+30%熟悉，50%华语/亚洲，回避⏳近期列表',
+    '- 开场不要直接报歌名，先描绘生活化画面',
   ].filter(b => b !== '').join('\n');
 
   // ── Assemble User Message ──
@@ -318,6 +302,19 @@ function getLikedSongsHint() {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// ── Scene Pool from storyteller.js database ──
+function getScenePool() {
+  try {
+    const { SCENE_WORDS, TIME_MOODS, pickUnique, _sceneRef, _moodRef } = require('./storyteller');
+    const hour = new Date().getHours();
+    const slot = hour < 6 ? 'late_night' : hour < 9 ? 'early_morning' : hour < 12 ? 'morning' : hour < 14 ? 'afternoon' : hour < 17 ? 'afternoon' : hour < 19 ? 'evening' : 'night';
+    const scene = pickUnique(SCENE_WORDS, _sceneRef);
+    const mood = pickUnique(TIME_MOODS[slot], _moodRef);
+    return `${scene}，${mood}`;
+  } catch {}
+  return '夜深了，窗外万籁俱寂';
+}
 
 function getTimeOfDay(h) {
   if (h < 6)  return 'late-night';

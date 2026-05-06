@@ -39,10 +39,9 @@ async function getLocation() {
     if (ip.latitude && ip.longitude) {
       const loc = { lat: ip.latitude, lon: ip.longitude, city: ip.city, region: ip.region };
       if (state) state.setPref('location', loc);
-      console.log(`[weather] Detected location: ${loc.city || ''}, ${loc.region || ''} (${loc.lat}, ${loc.lon})`);
       return loc;
     }
-  } catch (e) { console.log('[weather] IP geolocation failed:', e.message); }
+  } catch (e) { /* IP geolocation failed */ }
   // 3. .env fallback
   return {
     lat: parseFloat(process.env.LAT) || 39.9,
