@@ -395,8 +395,26 @@ async function getEmergencyUrl(trackId) {
   return null;
 }
 
+/**
+ * Hard fallback: try each HARD_FALLBACK_ID until one returns a playable URL.
+ * Shared by router and scheduler. Used as LAST resort — bypasses all filters.
+ */
+async function resolveHardFallback(fallbackIds) {
+  const shuffled = [...fallbackIds].sort(() => Math.random() - 0.5);
+  for (const fb of shuffled) {
+    try {
+      const info = await getEmergencyUrl(fb.id);
+      if (info?.url) {
+        return { id: fb.id, name: fb.name, artists: fb.artist,
+          label: `${fb.artist} - ${fb.name}`, url: info.url, album: '' };
+      }
+    } catch {}
+  }
+  return null;
+}
+
 module.exports = {
   search, getSongUrl, getEmergencyUrl, getLyric, getSongDetail,
   getUserPlaylists, getPlaylistDetail, getLoginStatus, getLikedSongs,
-  resolveTrack, resolvePlaylist, ping,
+  resolveTrack, resolvePlaylist, ping, resolveHardFallback,
 };

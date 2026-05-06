@@ -9,20 +9,6 @@ const ncm = require('../api/netease');
 const state = require('./state');
 const { HARD_FALLBACK_IDS } = require('./config');
 
-async function resolveHardFallback() {
-  const shuffled = [...HARD_FALLBACK_IDS].sort(() => Math.random() - 0.5);
-  for (const fb of shuffled) {
-    try {
-      const info = await ncm.getEmergencyUrl(fb.id);
-      if (info?.url) {
-        return { id: fb.id, name: fb.name, artists: fb.artist,
-          label: `${fb.artist} - ${fb.name}`, url: info.url, album: '' };
-      }
-    } catch {}
-  }
-  return null;
-}
-
 const SLASH_CMDS = [
   { name: 'search',  pattern: /^\/search\s+(.+)/i },
   { name: 'skip',    pattern: /^\/(skip|next)/i },
@@ -133,7 +119,7 @@ async function handleChat(input, intent = 'chat') {
   // Fast path: AI fallback → skip TTS, use hard fallback track directly
   if (isFallback && action !== 'chat_only') {
     console.log('[router] handleChat → hard fallback path');
-    const hard = await resolveHardFallback();
+    const hard = await ncm.resolveHardFallback(HARD_FALLBACK_IDS);
     if (hard) {
       console.log(`[router] hard fallback OK: "${hard.label}"`);
       state.addMessage('user', input);

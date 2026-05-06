@@ -18,29 +18,13 @@ let _schedulerFailStreak = 0;
 function setCallback(fn) { onTask = fn; }
 function broadcast(data) { if (onTask) onTask(data); }
 
-// Get a playable track from hardcoded free IDs.
-// Hard fallback is the LAST resort — it bypasses the filter.
-async function resolveHardFallback() {
-  const shuffled = [...HARD_FALLBACK_IDS].sort(() => Math.random() - 0.5);
-  for (const fb of shuffled) {
-    try {
-      const info = await ncm.getEmergencyUrl(fb.id);
-      if (info?.url) {
-        return { id: fb.id, name: fb.name, artists: fb.artist,
-          label: `${fb.artist} - ${fb.name}`, url: info.url, album: '' };
-      }
-    } catch {}
-  }
-  return null;
-}
-
 async function runTask({ trigger, userInput, executionTrace }) {
   console.log(`[scheduler] runTask trigger=${trigger} input="${(userInput||'').slice(0,40)}..."`);
   try {
     // Circuit breaker: if search keeps failing, skip DeepSeek entirely
     if (_schedulerFailStreak >= MAX_SCHEDULER_FAILS) {
       console.log(`[scheduler] Circuit OPEN (${_schedulerFailStreak} fails) — hard fallback`);
-      const track = await resolveHardFallback();
+      const track = await ncm.resolveHardFallback(HARD_FALLBACK_IDS);
       if (track) {
         state.addPlay(track.label || track.name, 'ai');
         broadcast({ type: 'scheduled', trigger, speech: 'AI 暂时休息，为你播首经典。',
@@ -88,7 +72,7 @@ async function runTask({ trigger, userInput, executionTrace }) {
 
     // Fast path: AI fallback → skip flaky search + TTS, use hard fallback directly
     if (isFallback) {
-      const hard = await resolveHardFallback();
+      const hard = await ncm.resolveHardFallback(HARD_FALLBACK_IDS);
       if (hard) {
         state.addPlay(hard.label || hard.name, 'ai');
         broadcast({ type: 'scheduled', trigger, speech: 'AI 暂时休息，为你播首经典。',
@@ -124,7 +108,7 @@ async function runTask({ trigger, userInput, executionTrace }) {
         if (urlInfo?.url) { tracks = [{ ...t, url: urlInfo.url }]; break; }
       }
       if (!tracks.length) {
-        const hard = await resolveHardFallback();
+        const hard = await ncm.resolveHardFallback(HARD_FALLBACK_IDS);
         if (hard) tracks = [hard];
       }
       _schedulerFailStreak++;
