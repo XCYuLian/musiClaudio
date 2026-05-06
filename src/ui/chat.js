@@ -254,6 +254,7 @@ let _lastRefill = 0;
 // ── Prefetch: load next track in background as soon as current song starts ──
 let _nextTrack = null;
 let _prefetching = false;
+let _prefetchGen = 0;
 
 async function prefetchNext() {
   if (_busy) { console.log('[chat] prefetch skip: _busy=true'); return; }
@@ -261,12 +262,14 @@ async function prefetchNext() {
   if (_failStreak >= MAX_FAIL_STREAK) { console.log('[chat] prefetch skip: circuit open'); return; }
   if (typeof _coldBooting !== 'undefined' && _coldBooting) { console.log('[chat] prefetch skip: cold booting'); return; }
   _prefetching = true;
-  console.log('[chat] prefetch START');
+  const myGen = ++_prefetchGen;
+  console.log(`[chat] prefetch START gen=${myGen}`);
   try {
     const h = new Date().getHours();
     const mood = h<6?'深夜':h<9?'清晨':h<12?'上午':h<14?'午后':h<17?'下午':h<19?'傍晚':'夜晚';
     const ctx = _recent.length ? '[最近播放：'+_recent.join(' → ')+']\n'+mood+'了，推荐下一首' : mood+'了，推荐下一首';
     const res = await window.claudio.sendMessage(ctx);
+    if (_prefetchGen !== myGen) { console.log(`[chat] prefetch cancelled gen=${myGen}`); return; }
     if (res.ok && res.action_type === 'change_song' && res.tracks?.some(t=>t.url)) {
       _nextTrack = res;
       console.log(`[chat] prefetch OK: "${res.tracks[0]?.label}" stored`);
@@ -274,8 +277,10 @@ async function prefetchNext() {
       console.log(`[chat] prefetch no-track: action=${res.action_type} tracks=${res.tracks?.length||0}`);
     }
   } catch(e) { console.warn(`[chat] prefetch FAIL: ${e.message}`); }
-  _prefetching = false;
-  setTimeout(retryPendingMsg, 0);
+  finally {
+    _prefetching = false;
+    setTimeout(retryPendingMsg, 0);
+  }
 }
 
 async function refill() {

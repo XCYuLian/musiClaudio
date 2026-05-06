@@ -284,6 +284,16 @@ function autoNext() {
     return;
   }
   console.log('[player] autoNext → refill');
+  // Cancel stale prefetch/story from previous song (prevent race condition)
+  if (typeof _prefetching !== 'undefined' && _prefetching) {
+    console.log('[player] autoNext → cancel stale prefetch');
+    _prefetching = false;
+    if (typeof _prefetchGen !== 'undefined') _prefetchGen++;
+  }
+  if (typeof _storyGenerating !== 'undefined' && _storyGenerating) {
+    console.log('[player] autoNext → cancel stale story');
+    _storyGenerating = false;
+  }
   refill();
 }
 
